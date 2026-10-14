@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import re
 from typing import Callable
 
-from ..games.base import Game
-from ..information.base import Observation
+from ..game.events import Action
+from ..information.observation import Observation
 from .base import Agent
+from .parsing import ParseError, parse_model_output
 from .prompts import SYSTEM, build_user_prompt
 
 
@@ -16,38 +16,68 @@ def _ollama_chat(**kwargs):
 
 
 class OllamaAgent(Agent):
-    """LLM agent backed by Ollama. Pass `chat_fn` to mock in tests."""
+    """LLM agent backed by Ollama.
 
-    def __init__(self, agent_id: int, model: str = "llama3.1:8b", temperature: float = 0.7,
-                 seed: int | None = None, total_rounds: int | None = None,
-                 fallback: str = "D", chat_fn: Callable | None = None):
+    Inject ``chat_fn`` to mock the model in tests (it receives the same keyword
+    arguments as ``ollama.chat`` and must return ``{"message": {"content": ...}}``).
+    On parse failure the output is retried once, then falls back to ``take=0``
+    (logged as ``parse_status="fallback"``).
+    """
+
+    def __init__(
+        self,
+        agent_id: int,
+        model: str = "llama3.1:8b",
+        temperature: float = 0.7,
+        seed: int | None = None,
+        communication: bool = True,
+        fallback_take: int = 0,
+        chat_fn: Callable | None = None,
+    ):
         super().__init__(agent_id)
-        self.model, self.temperature, self.seed = model, temperature, seed
-        self.total_rounds, self.fallback = total_rounds, fallback
+        self.model = model
+        self.temperature = temperature
+        self.seed = seed
+        self.communication = communication
+        self.fallback_take = fallback_take
         self._chat = chat_fn or _ollama_chat
         self.parse_failures = 0
-        self.transcript: list[dict] = []
 
-    def act(self, obs: Observation, game: Game) -> str:
-        prompt = build_user_prompt(obs, game, self.total_rounds)
+    def _call(self, prompt: str) -> str:
         options = {"temperature": self.temperature}
         if self.seed is not None:
             options["seed"] = self.seed
         resp = self._chat(
             model=self.model,
-            messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": SYSTEM},
+                {"role": "user", "content": prompt},
+            ],
             options=options,
         )
-        text = resp["message"]["content"]
-        action = self._parse(text)
-        self.transcript.append({"round": obs.round, "opponent": obs.opponent_id,
-                                "prompt": prompt, "response": text, "action": action})
-        return action
+        return resp["message"]["content"]
 
-    def _parse(self, text: str) -> str:
-        has_c = re.search(r"\bcooperate\b", text, re.I) is not None
-        has_d = re.search(r"\bdefect\b", text, re.I) is not None
-        if has_c != has_d:
-            return "C" if has_c else "D"
-        self.parse_failures += 1
-        return self.fallback
+    def act(self, obs: Observation) -> Action:
+        prompt = build_user_prompt(obs)
+        last_text = ""
+        for attempt in range(2):  # initial try + one retry
+            try:
+                last_text = self._call(prompt)
+                take, claimed = parse_model_output(last_text, self.communication)
+                status = "ok" if attempt == 0 else "retry_ok"
+                return Action(
+                    take=take,
+                    claimed_take=claimed,
+                    raw_output=last_text,
+                    parse_status=status,
+                )
+            except (ParseError, KeyError, TypeError):
+                self.parse_failures += 1
+
+        claimed = self.fallback_take if self.communication else None
+        return Action(
+            take=self.fallback_take,
+            claimed_take=claimed,
+            raw_output=last_text,
+            parse_status="fallback",
+        )

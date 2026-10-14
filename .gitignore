@@ -1,1 +1,13 @@
 .DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+build/
+*.egg-info/
+.pytest_cache/
+
+# Experiment outputs (per spec: results are gitignored)
+results/*.jsonl
