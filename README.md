@@ -16,33 +16,30 @@ ground truth; metrics are computed only from saved logs.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e ".[dev]"      # dev: adds pytest
-.venv/bin/pip install -e ".[dev,llm]"  # also installs the ollama client
+.venv/bin/python -m pip install -e ".[dev]"      # dev: adds pytest
+.venv/bin/python -m pip install -e ".[dev,llm]"  # also installs the ollama client
 ```
 
-> **Note (Homebrew Python):** Homebrew's `sitecustomize.py` rewrites `sys.path`
-> and can stop pip's editable `__editable__*.pth` from loading, so the
-> `infocoop` console script may fail to import. If so, either install normally
-> (`pip install .`) or run via the module with `PYTHONPATH`:
-> `PYTHONPATH=src .venv/bin/python -m infocoop.main ...`. Tests are unaffected
-> (pytest adds `src` itself).
+Run commands from the repository root. The source tree is a `src` package, so
+invoke the CLI as `src.main`; the project folder name (`multi-agent-coop`) does
+not affect the module path.
 
 ## Run
 
 ```bash
-infocoop list                         # show conditions
-infocoop run all_sustainable          # a deterministic scripted sanity check
-infocoop run one_defector             # greedy liar among sustainable honest agents
-infocoop run broadcast_unverified --seeds 5 --model llama3.1:8b   # LLM (needs Ollama)
-infocoop metrics results/             # aggregate metrics over a directory of games
+.venv/bin/python -m src.main list                         # show conditions
+.venv/bin/python -m src.main run all_sustainable          # deterministic scripted sanity check
+.venv/bin/python -m src.main run one_defector             # greedy liar among sustainable honest agents
+.venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model llama3.1:8b  # LLM (needs Ollama)
+.venv/bin/python -m src.main metrics results/             # aggregate metrics over a directory of games
 ```
 
-Equivalently: `python -m infocoop.main <args>`.
+Equivalently, with the virtual environment activated: `python -m src.main <args>`.
 
 LLM conditions need a running [Ollama](https://ollama.com) with the chosen model
 pulled. Scripted conditions need no LLM and are fully deterministic.
 
-## Conditions (`src/infocoop/experiments/configs.py`)
+## Conditions (`src/experiments/configs.py`)
 
 | Condition | Agents | Comm. | Purpose |
 |---|---|---|---|
@@ -54,7 +51,7 @@ pulled. Scripted conditions need no LLM and are fully deterministic.
 ## Layout
 
 ```
-src/infocoop/
+src/
 ├── game/          # config, state, events, payoff (overdraw), environment (round loop)
 ├── information/   # log (JSONL ground truth) + observation builder (the only log→agent path)
 ├── agents/        # base, scripted, llm (Ollama), prompts, parsing
