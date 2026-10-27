@@ -51,3 +51,17 @@ def test_overdraw_round_ends_game():
     log = Environment(cfg, _agents(2, "greedy")).run()
     assert log.rounds[-1].pool_next == 0
     assert len(log.rounds) == 1
+
+
+def test_take_capped_at_current_pool():
+    # An agent asking for more than the pool holds is recorded as taking the pool.
+    from src.agents.llm import OllamaAgent
+
+    def chat(**kwargs):
+        return {"message": {"content": '{"take": 500, "claimed_take": 1}'}}
+
+    cfg = GameConfig(n_agents=1, initial_pool=20)
+    log = Environment(cfg, [OllamaAgent(0, chat_fn=chat)]).run()
+    r = log.rounds[0]
+    assert r.takes[0] == 20 and r.granted[0] == 20
+    assert r.pool_next == 0

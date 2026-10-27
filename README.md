@@ -32,6 +32,7 @@ not affect the module path.
 .venv/bin/python -m src.main run one_defector             # greedy liar among sustainable honest agents
 .venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model llama3.1:8b  # LLM (needs Ollama)
 .venv/bin/python -m src.main metrics results/             # aggregate metrics over a directory of games
+.venv/bin/python -m src.main show results/                # round-by-round view of every game (add --raw for model output)
 ```
 
 Equivalently, with the virtual environment activated: `python -m src.main <args>`.

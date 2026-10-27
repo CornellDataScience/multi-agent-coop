@@ -2,12 +2,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 from .agents.prompt_variants import VARIANTS
+from .analysis.replay import format_game
 from .experiments.configs import CONDITIONS, get_condition
 from .experiments.metrics import aggregate, summarize_game
 from .experiments.runner import run_condition
+
+
+def _load_dotenv(path: Path = Path(".env")) -> None:
+    """Load KEY=value lines from .env into the environment (existing vars win)."""
+    if not path.is_file():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        value = value.strip().strip('"').strip("'")
+        if value:
+            os.environ.setdefault(key.strip(), value)
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
@@ -50,6 +66,16 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_show(args: argparse.Namespace) -> int:
+    target = Path(args.path)
+    files = sorted(target.glob("*.jsonl")) if target.is_dir() else [target]
+    if not files:
+        print(f"no .jsonl games found at {target}")
+        return 1
+    print("\n\n".join(format_game(f, raw=args.raw) for f in files))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="infocoop", description="Fisherman's Dilemma harness")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -72,10 +98,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_m.add_argument("path")
     p_m.set_defaults(func=_cmd_metrics)
 
+    p_s = sub.add_parser("show", help="round-by-round view of a game file or directory")
+    p_s.add_argument("path")
+    p_s.add_argument("--raw", action="store_true", help="also print each agent's raw model output")
+    p_s.set_defaults(func=_cmd_show)
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
+    _load_dotenv()
     args = build_parser().parse_args(argv)
     return args.func(args)
 

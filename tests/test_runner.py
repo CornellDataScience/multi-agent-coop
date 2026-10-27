@@ -38,3 +38,15 @@ def test_nocomm_condition_has_no_deception(tmp_path):
     paths = run_condition(exp, out_dir=tmp_path, chat_fn=_chat, seeds=[0])
     summary = summarize_game(paths[0])
     assert summary["deception"] == {}
+
+
+def test_show_formats_rounds_and_lies(tmp_path):
+    from src.analysis.replay import format_game
+
+    exp = get_condition("broadcast_unverified")
+    path = run_condition(exp, out_dir=tmp_path, chat_fn=_chat, seeds=[0])[0]
+    text = format_game(path, raw=True)
+    assert "round 1:" in text
+    assert "asked    3  got    3  claimed    2  LIE" in text
+    assert 'raw: {"take": 3, "claimed_take": 2}' in text
+    assert "lies 30" in text  # 3 agents x 10 rounds

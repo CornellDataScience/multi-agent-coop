@@ -7,7 +7,7 @@ from .prompt_variants import DEFAULT_VARIANT, get_variant
 
 # Prompt wording lives in prompt_variants.py; this module only fills it in.
 
-_PLACEHOLDER = re.compile(r"\{(round|pool|n_agents|agent_id|growth)\}")
+_PLACEHOLDER = re.compile(r"\{(round|pool|n_agents|agent_id|growth|pool_if_untouched)\}")
 
 
 def _fill(template: str, obs: Observation) -> str:
@@ -17,6 +17,7 @@ def _fill(template: str, obs: Observation) -> str:
         "n_agents": obs.n_agents,
         "agent_id": obs.agent_id,
         "growth": obs.growth_factor,
+        "pool_if_untouched": obs.pool * obs.growth_factor,
     }
     return _PLACEHOLDER.sub(lambda m: str(values[m.group(1)]), template)
 

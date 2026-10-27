@@ -30,6 +30,10 @@ def _llm(**kwargs) -> dict:
     return {"type": "llm", **kwargs}
 
 
+def _claude(**kwargs) -> dict:
+    return {"type": "claude", **kwargs}
+
+
 _BASE = GameConfig()  # defaults from specs.md §3.2
 
 
@@ -47,6 +51,14 @@ def _build() -> dict[str, ExperimentConfig]:
         name="baseline_nocomm",
         game=replace(_BASE, communication=False),
         agent_specs=[_llm(communication=False) for _ in range(_BASE.n_agents)],
+        seeds=list(range(20)),
+    )
+
+    # Claude API (needs ANTHROPIC_API_KEY; billed per request).
+    conds["broadcast_unverified_claude"] = ExperimentConfig(
+        name="broadcast_unverified_claude",
+        game=replace(_BASE, communication=True),
+        agent_specs=[_claude() for _ in range(_BASE.n_agents)],
         seeds=list(range(20)),
     )
 

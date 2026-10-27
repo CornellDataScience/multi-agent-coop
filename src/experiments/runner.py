@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable
 
 from ..agents.base import Agent
+from ..agents.claude import ClaudeAgent
 from ..agents.llm import OllamaAgent
 from ..agents.prompt_variants import DEFAULT_VARIANT
 from ..agents.scripted import ScriptedAgent
@@ -41,6 +42,17 @@ def build_agent(
             prompt_variant=prompt_variant,
             chat_fn=chat_fn,
         )
+    if kind == "claude":
+        return ClaudeAgent(
+            agent_id,
+            model=model_override or spec.get("model", "claude-sonnet-5-5"),
+            effort=spec.get("effort", "medium"),
+            fallbacks=spec.get("fallbacks", False),
+            communication=game.communication,
+            fallback_take=spec.get("fallback_take", 0),
+            prompt_variant=prompt_variant,
+            chat_fn=chat_fn,
+        )
     raise ValueError(f"unknown agent type: {kind!r}")
 
 
@@ -60,7 +72,7 @@ def run_condition(
     """
     out_dir = Path(out_dir)
     variant = prompt_variant or exp.prompt_variant
-    uses_llm = any(s.get("type") == "llm" for s in exp.agent_specs)
+    uses_llm = any(s.get("type") in ("llm", "claude") for s in exp.agent_specs)
     # Tag non-default prompts in the filename so variants don't overwrite each other.
     stem = f"{exp.name}_{variant}" if uses_llm and variant != DEFAULT_VARIANT else exp.name
     paths: list[Path] = []

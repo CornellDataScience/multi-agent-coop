@@ -17,6 +17,7 @@ class Action:
     raw_output: str | None = None
     message: str = ""
     parse_status: str = "ok"  # "ok" | "retry_ok" | "fallback"
+    served_by: str | None = None  # model that answered, when the backend reports it
 
     def to_dict(self) -> dict:
         return {
@@ -25,6 +26,7 @@ class Action:
             "raw_output": self.raw_output,
             "message": self.message,
             "parse_status": self.parse_status,
+            "served_by": self.served_by,
         }
 
 
