@@ -1,6 +1,6 @@
-from infocoop.agents.scripted import ScriptedAgent
-from infocoop.game.config import GameConfig
-from infocoop.game.environment import Environment
+from src.agents.scripted import ScriptedAgent
+from src.game.config import GameConfig
+from src.game.environment import Environment
 
 
 def _agents(n, take, claim="honest", communication=True):

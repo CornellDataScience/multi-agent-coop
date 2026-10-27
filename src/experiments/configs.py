@@ -2,18 +2,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
+from ..agents.prompt_variants import DEFAULT_VARIANT
 from ..game.config import GameConfig
 
 
 @dataclass(frozen=True)
 class ExperimentConfig:
     """One experimental condition: a base game config + an agent lineup + the
-    seeds to run. Each seed is one full game (run)."""
+    seeds to run. Each seed is one full game (run). ``prompt_variant`` names the
+    LLM prompt wording; scripted agents ignore it."""
 
     name: str
     game: GameConfig
     agent_specs: list[dict] = field(default_factory=list)
     seeds: list[int] = field(default_factory=lambda: [0])
+    prompt_variant: str = DEFAULT_VARIANT  # see agents/prompt_variants.py
 
     def with_overrides(self, **game_kwargs) -> "ExperimentConfig":
         return replace(self, game=replace(self.game, **game_kwargs))

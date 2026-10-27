@@ -1,6 +1,6 @@
 import pytest
 
-from infocoop.agents.parsing import ParseError, parse_model_output
+from src.agents.parsing import ParseError, parse_model_output
 
 
 def test_valid_json_with_surrounding_text():

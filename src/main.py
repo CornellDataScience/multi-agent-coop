@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .agents.prompt_variants import VARIANTS
 from .experiments.configs import CONDITIONS, get_condition
 from .experiments.metrics import aggregate, summarize_game
 from .experiments.runner import run_condition
@@ -25,6 +26,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         out_dir=args.out,
         model_override=args.model,
         seeds=seeds,
+        prompt_variant=args.prompt,
     )
     print(f"Ran '{exp.name}' -> {len(paths)} game(s) in {args.out}")
     for p in paths:
@@ -58,6 +60,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("condition", choices=sorted(CONDITIONS))
     p_run.add_argument("--seeds", type=int, default=None, help="override: run seeds 0..N-1")
     p_run.add_argument("--model", default=None, help="override LLM model id")
+    p_run.add_argument(
+        "--prompt", default=None, choices=sorted(VARIANTS),
+        help="prompt variant from agents/prompt_variants.py",
+    )
     p_run.add_argument("--out", default="results", help="output directory")
     p_run.add_argument("--no-metrics", action="store_true", help="skip metrics summary")
     p_run.set_defaults(func=_cmd_run)

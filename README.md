@@ -39,6 +39,14 @@ Equivalently, with the virtual environment activated: `python -m src.main <args>
 LLM conditions need a running [Ollama](https://ollama.com) with the chosen model
 pulled. Scripted conditions need no LLM and are fully deterministic.
 
+### Prompt variants
+
+LLM prompt wording lives in [`src/agents/prompt_variants.py`](src/agents/prompt_variants.py)
+as named variants (default: `neutral`). Add a variant there, then select it with
+`--prompt <name>`. The variant is recorded in each game's meta record, and
+non-default variants are added to the output filename
+(e.g. `broadcast_unverified_community_seed0.jsonl`).
+
 ## Conditions (`src/experiments/configs.py`)
 
 | Condition | Agents | Comm. | Purpose |

@@ -21,12 +21,20 @@ class Environment:
     An agent therefore never sees the current round's claims, only prior ones.
     """
 
-    def __init__(self, config: GameConfig, agents: list["Agent"], condition: str = "unnamed"):
+    def __init__(
+        self,
+        config: GameConfig,
+        agents: list["Agent"],
+        condition: str = "unnamed",
+        prompt_variant: str | None = None,
+    ):
         if len(agents) != config.n_agents:
             raise ValueError(f"expected {config.n_agents} agents, got {len(agents)}")
         self.config = config
         self.agents = agents
-        self.log = GameLog(config=config, seed=config.seed, condition=condition)
+        self.log = GameLog(
+            config=config, seed=config.seed, condition=condition, prompt_variant=prompt_variant
+        )
 
     def run(self) -> GameLog:
         cfg = self.config

@@ -1,7 +1,7 @@
-from infocoop.experiments.configs import get_condition
-from infocoop.experiments.metrics import aggregate, summarize_game
-from infocoop.experiments.runner import run_condition
-from infocoop.information.log import load_game
+from src.experiments.configs import get_condition
+from src.experiments.metrics import aggregate, summarize_game
+from src.experiments.runner import run_condition
+from src.information.log import load_game
 
 
 def _chat(**kwargs):

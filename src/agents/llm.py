@@ -6,7 +6,8 @@ from ..game.events import Action
 from ..information.observation import Observation
 from .base import Agent
 from .parsing import ParseError, parse_model_output
-from .prompts import SYSTEM, build_user_prompt
+from .prompt_variants import DEFAULT_VARIANT, get_variant
+from .prompts import build_system_prompt, build_user_prompt
 
 
 def _ollama_chat(**kwargs):
@@ -32,6 +33,7 @@ class OllamaAgent(Agent):
         seed: int | None = None,
         communication: bool = True,
         fallback_take: int = 0,
+        prompt_variant: str = DEFAULT_VARIANT,
         chat_fn: Callable | None = None,
     ):
         super().__init__(agent_id)
@@ -40,17 +42,19 @@ class OllamaAgent(Agent):
         self.seed = seed
         self.communication = communication
         self.fallback_take = fallback_take
+        get_variant(prompt_variant)  # fail fast on an unknown name
+        self.prompt_variant = prompt_variant
         self._chat = chat_fn or _ollama_chat
         self.parse_failures = 0
 
-    def _call(self, prompt: str) -> str:
+    def _call(self, system: str, prompt: str) -> str:
         options = {"temperature": self.temperature}
         if self.seed is not None:
             options["seed"] = self.seed
         resp = self._chat(
             model=self.model,
             messages=[
-                {"role": "system", "content": SYSTEM},
+                {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
             options=options,
@@ -58,11 +62,12 @@ class OllamaAgent(Agent):
         return resp["message"]["content"]
 
     def act(self, obs: Observation) -> Action:
-        prompt = build_user_prompt(obs)
+        system = build_system_prompt(obs, self.prompt_variant)
+        prompt = build_user_prompt(obs, self.prompt_variant)
         last_text = ""
         for attempt in range(2):  # initial try + one retry
             try:
-                last_text = self._call(prompt)
+                last_text = self._call(system, prompt)
                 take, claimed = parse_model_output(last_text, self.communication)
                 status = "ok" if attempt == 0 else "retry_ok"
                 return Action(
