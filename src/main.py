@@ -85,7 +85,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="run a condition over its seeds")
     p_run.add_argument("condition", choices=sorted(CONDITIONS))
     p_run.add_argument("--seeds", type=int, default=None, help="override: run seeds 0..N-1")
-    p_run.add_argument("--model", default=None, help="override LLM model id")
+    p_run.add_argument(
+        "--model", default=None,
+        help="model ID to use (for example llama3.1:8b or qwen3:8b; defaults to the condition's model)",
+    )
     p_run.add_argument(
         "--prompt", default=None, choices=sorted(VARIANTS),
         help="prompt variant from agents/prompt_variants.py",

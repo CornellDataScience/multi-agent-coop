@@ -73,8 +73,15 @@ def run_condition(
     out_dir = Path(out_dir)
     variant = prompt_variant or exp.prompt_variant
     uses_llm = any(s.get("type") in ("llm", "claude") for s in exp.agent_specs)
-    # Tag non-default prompts in the filename so variants don't overwrite each other.
-    stem = f"{exp.name}_{variant}" if uses_llm and variant != DEFAULT_VARIANT else exp.name
+    # Keep runs with different prompts or model overrides from overwriting each other.
+    tags = []
+    if uses_llm and variant != DEFAULT_VARIANT:
+        tags.append(variant)
+    if uses_llm and model_override:
+        # Model IDs commonly contain ':' or '/', which are awkward in filenames.
+        model_tag = "".join(c if c.isalnum() or c in "._-" else "_" for c in model_override)
+        tags.append(model_tag)
+    stem = "_".join([exp.name, *tags])
     paths: list[Path] = []
     for seed in seeds if seeds is not None else exp.seeds:
         game = replace(exp.game, seed=seed)

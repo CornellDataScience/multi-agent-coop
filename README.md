@@ -30,7 +30,8 @@ not affect the module path.
 .venv/bin/python -m src.main list                         # show conditions
 .venv/bin/python -m src.main run all_sustainable          # deterministic scripted sanity check
 .venv/bin/python -m src.main run one_defector             # greedy liar among sustainable honest agents
-.venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model llama3.1:8b  # LLM (needs Ollama)
+.venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model llama3.1:8b  # Llama via Ollama
+.venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model qwen3:8b     # Qwen via Ollama
 .venv/bin/python -m src.main metrics results/             # aggregate metrics over a directory of games
 .venv/bin/python -m src.main show results/                # round-by-round view of every game (add --raw for model output)
 ```
@@ -38,7 +39,21 @@ not affect the module path.
 Equivalently, with the virtual environment activated: `python -m src.main <args>`.
 
 LLM conditions need a running [Ollama](https://ollama.com) with the chosen model
-pulled. Scripted conditions need no LLM and are fully deterministic.
+pulled (`ollama pull llama3.1:8b` or `ollama pull qwen3:8b`). Use `--model`
+to select a different Ollama model without editing code. The selected model is
+included in output filenames (for example, `broadcast_unverified_qwen3_8b_seed0.jsonl`)
+so runs with different models are kept separately. Scripted conditions need no
+LLM and are fully deterministic.
+
+### Research metrics
+
+`metrics <game.jsonl>` reports per-agent fish acquired, share and rank; lie
+frequency and magnitude, under/over-reporting, and fish acquired in rounds where
+the agent lied; plus game-level extraction, resource sustainability, collapse,
+inequality, overdraw losses, and model-output retry/fallback rates. “Fish acquired
+in lie rounds” is descriptive: claims do not affect allocation in this game, so
+it should not be interpreted as a causal reward for deception. Running
+`metrics <directory>` reports mean and standard deviation across games.
 
 ### Prompt variants
 
