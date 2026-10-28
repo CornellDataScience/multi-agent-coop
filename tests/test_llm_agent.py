@@ -1,7 +1,7 @@
-from infocoop.agents.llm import OllamaAgent
-from infocoop.game.config import GameConfig
-from infocoop.game.environment import Environment
-from infocoop.information.observation import Observation
+from src.agents.llm import OllamaAgent
+from src.game.config import GameConfig
+from src.game.environment import Environment
+from src.information.observation import Observation
 
 
 def _obs(communication=True):

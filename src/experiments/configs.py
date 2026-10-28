@@ -2,18 +2,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
+from ..agents.prompt_variants import DEFAULT_VARIANT
 from ..game.config import GameConfig
 
 
 @dataclass(frozen=True)
 class ExperimentConfig:
     """One experimental condition: a base game config + an agent lineup + the
-    seeds to run. Each seed is one full game (run)."""
+    seeds to run. Each seed is one full game (run). ``prompt_variant`` names the
+    LLM prompt wording; scripted agents ignore it."""
 
     name: str
     game: GameConfig
     agent_specs: list[dict] = field(default_factory=list)
     seeds: list[int] = field(default_factory=lambda: [0])
+    prompt_variant: str = DEFAULT_VARIANT  # see agents/prompt_variants.py
 
     def with_overrides(self, **game_kwargs) -> "ExperimentConfig":
         return replace(self, game=replace(self.game, **game_kwargs))
@@ -25,6 +28,10 @@ def _scripted(take: str, claim: str = "honest") -> dict:
 
 def _llm(**kwargs) -> dict:
     return {"type": "llm", **kwargs}
+
+
+def _claude(**kwargs) -> dict:
+    return {"type": "claude", **kwargs}
 
 
 _BASE = GameConfig()  # defaults from specs.md §3.2
@@ -44,6 +51,14 @@ def _build() -> dict[str, ExperimentConfig]:
         name="baseline_nocomm",
         game=replace(_BASE, communication=False),
         agent_specs=[_llm(communication=False) for _ in range(_BASE.n_agents)],
+        seeds=list(range(20)),
+    )
+
+    # Claude API (needs ANTHROPIC_API_KEY; billed per request).
+    conds["broadcast_unverified_claude"] = ExperimentConfig(
+        name="broadcast_unverified_claude",
+        game=replace(_BASE, communication=True),
+        agent_specs=[_claude() for _ in range(_BASE.n_agents)],
         seeds=list(range(20)),
     )
 

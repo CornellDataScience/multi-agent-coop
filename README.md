@@ -32,12 +32,21 @@ not affect the module path.
 .venv/bin/python -m src.main run one_defector             # greedy liar among sustainable honest agents
 .venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model llama3.1:8b  # LLM (needs Ollama)
 .venv/bin/python -m src.main metrics results/             # aggregate metrics over a directory of games
+.venv/bin/python -m src.main show results/                # round-by-round view of every game (add --raw for model output)
 ```
 
 Equivalently, with the virtual environment activated: `python -m src.main <args>`.
 
 LLM conditions need a running [Ollama](https://ollama.com) with the chosen model
 pulled. Scripted conditions need no LLM and are fully deterministic.
+
+### Prompt variants
+
+LLM prompt wording lives in [`src/agents/prompt_variants.py`](src/agents/prompt_variants.py)
+as named variants (default: `neutral`). Add a variant there, then select it with
+`--prompt <name>`. The variant is recorded in each game's meta record, and
+non-default variants are added to the output filename
+(e.g. `broadcast_unverified_community_seed0.jsonl`).
 
 ## Conditions (`src/experiments/configs.py`)
 

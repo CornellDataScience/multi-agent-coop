@@ -13,7 +13,7 @@ class GameConfig:
 
     n_agents: int = 3
     max_rounds: int = 10
-    initial_pool: int = 20
+    initial_pool: int = 100
     growth_factor: int = 2
     pool_cap: int | None = None
     overdraw_rule: str = "proportional"

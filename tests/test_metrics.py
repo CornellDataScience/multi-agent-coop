@@ -1,6 +1,6 @@
 import math
 
-from infocoop.experiments.metrics import (
+from src.experiments.metrics import (
     deception_metrics,
     gini,
     personal_metrics,

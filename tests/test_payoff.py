@@ -1,4 +1,4 @@
-from infocoop.game.payoff import apportion, clamp
+from src.game.payoff import apportion, clamp
 
 
 def test_clamp():
