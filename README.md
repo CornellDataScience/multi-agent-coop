@@ -21,8 +21,9 @@ metrics are computed only from saved logs.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"      # dev: adds pytest
-.venv/bin/python -m pip install -e ".[dev,llm]"  # also installs the ollama client
+.venv/bin/python -m pip install -e ".[dev]"         # dev: adds pytest
+.venv/bin/python -m pip install -e ".[dev,llm]"     # also installs the ollama client
+.venv/bin/python -m pip install -e ".[dev,claude]"  # also installs the anthropic client
 ```
 
 Run commands from the repository root. The source tree is a `src` package, so
@@ -44,11 +45,13 @@ not affect the module path.
 Equivalently, with the virtual environment activated: `python -m src.main <args>`.
 
 LLM conditions need a running [Ollama](https://ollama.com) with the chosen model
-pulled (`ollama pull llama3.1:8b` or `ollama pull qwen3:8b`). Use `--model`
-to select a different Ollama model without editing code. The selected model is
-included in output filenames (for example, `broadcast_unverified_qwen3_8b_seed0.jsonl`)
-so runs with different models are kept separately. Scripted conditions need no
-LLM and are fully deterministic.
+pulled (`ollama pull llama3.1:8b` or `ollama pull qwen3:8b`) and the `llm`
+extra installed. Use `--model` to select a different Ollama model without
+editing code. The selected model is included in output filenames (for example,
+`broadcast_unverified_qwen3_8b_seed0.jsonl`) so runs with different models are
+kept separately. The Claude condition (`broadcast_unverified_claude`) needs
+the `claude` extra installed and an `ANTHROPIC_API_KEY` in `.env` (see
+`.env.example`). Scripted conditions need no LLM and are fully deterministic.
 
 ### Research metrics
 

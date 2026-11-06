@@ -11,6 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 llm = ["ollama>=0.3"]
+claude = ["anthropic>=0.40"]
 dev = ["pytest>=7"]
 
 [project.scripts]
