@@ -3,8 +3,8 @@ from src.game.config import GameConfig
 from src.game.environment import Environment
 
 
-def _agents(n, take, claim="honest", communication=True):
-    return [ScriptedAgent(i, take, claim, communication=communication) for i in range(n)]
+def _agents(n, take, claim="honest"):
+    return [ScriptedAgent(i, take, claim) for i in range(n)]
 
 
 def test_all_greedy_collapses_round_one():
@@ -35,6 +35,10 @@ def test_invariants_hold_every_round():
         # non-negativity
         assert r.pool_after >= 0 and r.pool_next >= 0
         assert all(g >= 0 for g in r.granted.values())
+        # the first take never counts toward the pool: it is clamped to the
+        # same pool_before the final take sees, and does not appear anywhere
+        # in the conservation/growth accounting above.
+        assert all(0 <= t <= r.pool_before for t in r.first_takes.values())
 
 
 def test_determinism_scripted():
@@ -58,10 +62,20 @@ def test_take_capped_at_current_pool():
     from src.agents.llm import OllamaAgent
 
     def chat(**kwargs):
-        return {"message": {"content": '{"take": 500, "claimed_take": 1}'}}
+        # One blob satisfies both the first- and second-phase schema, so the
+        # same mock works for both calls this agent makes in the round.
+        return {
+            "message": {
+                "content": (
+                    '{"first_announcement": 1, "first_take": 500, '
+                    '"revise": "no", "second_announcement": 1, "final_take": 500}'
+                )
+            }
+        }
 
     cfg = GameConfig(n_agents=1, initial_pool=20)
     log = Environment(cfg, [OllamaAgent(0, chat_fn=chat)]).run()
     r = log.rounds[0]
-    assert r.takes[0] == 20 and r.granted[0] == 20
+    assert r.first_takes[0] == 20
+    assert r.final_takes[0] == 20 and r.granted[0] == 20
     assert r.pool_next == 0

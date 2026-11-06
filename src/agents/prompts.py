@@ -22,17 +22,26 @@ def _fill(template: str, obs: Observation) -> str:
     return _PLACEHOLDER.sub(lambda m: str(values[m.group(1)]), template)
 
 
+def _announcements_line(announcements: dict[int, int]) -> str:
+    if not announcements:
+        return "none"
+    return ", ".join(f"fisherman {k} announced {v}" for k, v in sorted(announcements.items()))
+
+
 def _history_lines(obs: Observation) -> str:
     if not obs.history:
         return "No rounds have been played yet."
     lines = []
     for h in obs.history:
-        line = f"- Round {h['round']}: pool was {h['pool_before']}; you took {h['your_take']}"
-        if obs.communication and "claims" in h:
-            claims = ", ".join(f"fisherman {k} claimed {v}" for k, v in h["claims"].items())
-            line += f"; others announced: {claims or 'none'}"
-            line += f"; total actually taken from the pool: {h['inferred_total_take']}"
-        lines.append(line)
+        revised = "revised" if h["your_revision"] else "did not revise"
+        lines.append(
+            f"- Round {h['round']}: pool was {h['pool_before']} -> {h['pool_after']} after "
+            f"final takes. First announcements: {_announcements_line(h['first_announcements'])}. "
+            f"Second announcements: {_announcements_line(h['second_announcements'])}. "
+            f"You took {h['your_first_take']} on your first (uncounted) take and "
+            f"{h['your_final_take']} on your final take ({revised} your plan); "
+            f"you received {h['your_granted']} fish."
+        )
     return "\n".join(lines)
 
 
@@ -40,14 +49,25 @@ def build_system_prompt(obs: Observation, variant: str = DEFAULT_VARIANT) -> str
     return _fill(get_variant(variant)["system"], obs)
 
 
-def build_user_prompt(obs: Observation, variant: str = DEFAULT_VARIANT) -> str:
+def build_first_user_prompt(obs: Observation, variant: str = DEFAULT_VARIANT) -> str:
     t = get_variant(variant)
-    rules = t["rules"]
-    if obs.communication:
-        rules += t["comm"]
-    schema = t["schema_comm"] if obs.communication else t["schema_nocomm"]
-
     return _fill(
-        f"{rules}\n\n{t['state']}\n\nHistory so far:\n{_history_lines(obs)}\n\n{schema}",
+        f"{t['rules']}\n\n{t['state']}\n\nHistory so far:\n{_history_lines(obs)}\n\n"
+        f"{t['schema_first']}",
+        obs,
+    )
+
+
+def build_second_user_prompt(obs: Observation, variant: str = DEFAULT_VARIANT) -> str:
+    t = get_variant(variant)
+    situation = (
+        f"Your first announcement this round was {obs.own_first_announcement} fish. "
+        "Your own actual first take (private; nobody saw it, and it did not count) "
+        f"was {obs.own_first_take} fish. The other fishermen's first announcements "
+        f"this round were: {_announcements_line(obs.other_first_announcements or {})}."
+    )
+    return _fill(
+        f"{t['rules']}\n\n{t['state']}\n\n{situation}\n\nHistory so far:\n"
+        f"{_history_lines(obs)}\n\n{t['schema_second']}",
         obs,
     )

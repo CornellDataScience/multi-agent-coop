@@ -18,7 +18,8 @@ class GameLog:
 
     Serialized as JSONL: the first line is a ``meta`` record (config, seed,
     condition, cooperative optimum); each subsequent line is one round,
-    including every agent's observation entering that round.
+    including every agent's first- and second-phase observation entering
+    that round.
     """
 
     config: GameConfig
@@ -26,11 +27,18 @@ class GameLog:
     condition: str = "unnamed"
     prompt_variant: str | None = None  # None for all-scripted games
     rounds: list[RoundResult] = field(default_factory=list)
-    observations: list[dict[int, "Observation"]] = field(default_factory=list)
+    first_observations: list[dict[int, "Observation"]] = field(default_factory=list)
+    second_observations: list[dict[int, "Observation"]] = field(default_factory=list)
 
-    def add_round(self, result: RoundResult, observations: dict[int, "Observation"]) -> None:
+    def add_round(
+        self,
+        result: RoundResult,
+        first_observations: dict[int, "Observation"],
+        second_observations: dict[int, "Observation"],
+    ) -> None:
         self.rounds.append(result)
-        self.observations.append(observations)
+        self.first_observations.append(first_observations)
+        self.second_observations.append(second_observations)
 
     @property
     def scores(self) -> dict[int, int]:
@@ -54,8 +62,10 @@ class GameLog:
         records = []
         for idx, r in enumerate(self.rounds):
             rec = {"record": "round", **r.to_dict()}
-            obs = self.observations[idx] if idx < len(self.observations) else {}
-            rec["observations"] = {i: o.to_dict() for i, o in obs.items()}
+            first_obs = self.first_observations[idx] if idx < len(self.first_observations) else {}
+            second_obs = self.second_observations[idx] if idx < len(self.second_observations) else {}
+            rec["first_observations"] = {i: o.to_dict() for i, o in first_obs.items()}
+            rec["second_observations"] = {i: o.to_dict() for i, o in second_obs.items()}
             records.append(rec)
         return records
 
@@ -90,9 +100,13 @@ def load_game(path: str | Path) -> tuple[dict, list[dict]]:
             if rec.get("record") == "meta":
                 meta = rec
                 continue
-            rec["takes"] = _int_keys(rec.get("takes"))
+            rec["first_announcements"] = _int_keys(rec.get("first_announcements"))
+            rec["first_takes"] = _int_keys(rec.get("first_takes"))
+            rec["revisions"] = _int_keys(rec.get("revisions"))
+            rec["second_announcements"] = _int_keys(rec.get("second_announcements"))
+            rec["final_takes"] = _int_keys(rec.get("final_takes"))
             rec["granted"] = _int_keys(rec.get("granted"))
-            rec["claims"] = _int_keys(rec.get("claims"))
-            rec["actions"] = _int_keys(rec.get("actions"))
+            rec["first_actions"] = _int_keys(rec.get("first_actions"))
+            rec["second_actions"] = _int_keys(rec.get("second_actions"))
             rounds.append(rec)
     return meta, rounds

@@ -41,12 +41,11 @@ class ClaudeAgent(LLMAgent):
         model: str = "claude-sonnet-5-5",
         effort: str = "medium",
         fallbacks: bool = False,
-        communication: bool = True,
         fallback_take: int = 0,
         prompt_variant: str = DEFAULT_VARIANT,
         chat_fn: Callable | None = None,
     ):
-        super().__init__(agent_id, model, communication, fallback_take, prompt_variant)
+        super().__init__(agent_id, model, fallback_take, prompt_variant)
         self.effort = effort
         self.fallbacks = fallbacks
         self._chat = chat_fn or _claude_chat

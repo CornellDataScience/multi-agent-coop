@@ -7,10 +7,16 @@ from src.information.log import load_game
 from src.information.observation import Observation
 
 
-def _obs(communication=True):
+def _first_obs():
+    return Observation(agent_id=0, round=1, pool=20, n_agents=3, growth_factor=2, phase="first", history=[])
+
+
+def _second_obs(own_first_announcement=5, own_first_take=5):
     return Observation(
-        agent_id=0, round=1, pool=20, n_agents=3,
-        growth_factor=2, communication=communication, history=[],
+        agent_id=0, round=1, pool=20, n_agents=3, growth_factor=2, phase="second", history=[],
+        own_first_announcement=own_first_announcement,
+        own_first_take=own_first_take,
+        other_first_announcements={1: 3, 2: 4},
     )
 
 
@@ -25,10 +31,20 @@ def _resp(text, stop_reason="end_turn", model="claude-sonnet-5-5"):
     )
 
 
-def test_parses_text_block_and_skips_thinking():
-    agent = ClaudeAgent(0, chat_fn=lambda **kw: _resp('{"take": 4, "claimed_take": 2}'))
-    action = agent.act(_obs())
-    assert (action.take, action.claimed_take) == (4, 2)
+def test_parses_first_phase_text_block_and_skips_thinking():
+    agent = ClaudeAgent(0, chat_fn=lambda **kw: _resp('{"first_announcement": 4, "first_take": 2}'))
+    action = agent.act_first(_first_obs())
+    assert (action.first_announcement, action.first_take) == (4, 2)
+    assert action.parse_status == "ok"
+    assert action.served_by == "claude-sonnet-5-5"
+
+
+def test_parses_second_phase_text_block():
+    agent = ClaudeAgent(
+        0, chat_fn=lambda **kw: _resp('{"revise": "yes", "second_announcement": 1, "final_take": 2}')
+    )
+    action = agent.act_second(_second_obs())
+    assert (action.revise, action.second_announcement, action.final_take) == (True, 1, 2)
     assert action.parse_status == "ok"
     assert action.served_by == "claude-sonnet-5-5"
 
@@ -38,9 +54,9 @@ def test_request_shape():
 
     def chat_fn(**kwargs):
         sent.update(kwargs)
-        return _resp('{"take": 1, "claimed_take": 1}')
+        return _resp('{"first_announcement": 1, "first_take": 1}')
 
-    ClaudeAgent(0, effort="low", fallbacks=True, chat_fn=chat_fn).act(_obs())
+    ClaudeAgent(0, effort="low", fallbacks=True, chat_fn=chat_fn).act_first(_first_obs())
     assert sent["model"] == "claude-sonnet-5-5"
     assert isinstance(sent["system"], str) and sent["system"]
     assert [m["role"] for m in sent["messages"]] == ["user"]
@@ -54,25 +70,29 @@ def test_fallbacks_off_by_default_omits_beta():
 
     def chat_fn(**kwargs):
         sent.update(kwargs)
-        return _resp('{"take": 1, "claimed_take": 1}')
+        return _resp('{"first_announcement": 1, "first_take": 1}')
 
-    ClaudeAgent(0, chat_fn=chat_fn).act(_obs())
+    ClaudeAgent(0, chat_fn=chat_fn).act_first(_first_obs())
     assert "fallbacks" not in sent and "betas" not in sent
 
 
 def test_refusal_falls_back_to_default_take():
     agent = ClaudeAgent(0, chat_fn=lambda **kw: _resp("", stop_reason="refusal"))
-    action = agent.act(_obs())
+    action = agent.act_first(_first_obs())
     assert action.parse_status == "fallback"
-    assert action.take == 0
+    assert action.first_announcement == 0 and action.first_take == 0
     assert agent.parse_failures == 2
 
 
 def test_claude_condition_runs_with_mock(tmp_path):
     exp = get_condition("broadcast_unverified_claude")
-    chat = lambda **kw: _resp('{"take": 3, "claimed_take": 2}')
+    content = (
+        '{"first_announcement": 3, "first_take": 2, '
+        '"revise": "no", "second_announcement": 3, "final_take": 2}'
+    )
+    chat = lambda **kw: _resp(content)
     path = run_condition(exp, out_dir=tmp_path, chat_fn=chat, seeds=[0])[0]
     meta, rounds = load_game(path)
     assert meta["prompt_variant"] == "neutral"
     assert len(rounds) == 10
-    assert rounds[0]["actions"][0]["served_by"] == "claude-sonnet-5-5"
+    assert rounds[0]["first_actions"][0]["served_by"] == "claude-sonnet-5-5"

@@ -10,12 +10,20 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True)
 class Observation:
-    """Everything agent ``agent_id`` may see entering a round.
+    """Everything agent ``agent_id`` may see at one step of a round.
 
     The information firewall lives here: ``history`` carries the agent's OWN
-    true takes and grants, plus OTHER agents' broadcast claims only — never
-    another agent's true take. There is no ``max_rounds`` or horizon hint
-    anywhere, by design (specs.md: unknown horizon).
+    true first/final takes, revision choice, and grant, plus every agent's
+    PUBLIC first and second announcements for past rounds -- never another
+    agent's true take or revision choice. There is no ``max_rounds`` or
+    horizon hint anywhere, by design (specs.md: unknown horizon).
+
+    ``phase`` is ``"first"`` (choosing the first announcement + first take,
+    before anyone's first announcement is visible) or ``"second"`` (choosing
+    the revision decision + second announcement + final take, after seeing
+    every agent's first announcement). The ``own_first_announcement`` /
+    ``own_first_take`` / ``other_first_announcements`` fields are only set in
+    the ``"second"`` phase.
     """
 
     agent_id: int
@@ -23,43 +31,74 @@ class Observation:
     pool: int
     n_agents: int
     growth_factor: int
-    communication: bool
+    phase: str
     history: list[dict] = field(default_factory=list)
+    own_first_announcement: int | None = None
+    own_first_take: int | None = None
+    other_first_announcements: dict[int, int] | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
-def build_observation(
-    log: "GameLog", agent_id: int, config: "GameConfig", pool: int, round: int
-) -> Observation:
-    """The ONLY path from the ground-truth log to an agent. Any information
-    policy change (control condition, a future hidden-pool condition) lives
-    here, not in the agents."""
+def _history(log: "GameLog", agent_id: int) -> list[dict]:
     history: list[dict] = []
     for past in log.rounds:
-        entry = {
-            "round": past.round,
-            "pool_before": past.pool_before,
-            "your_take": past.takes[agent_id],
-            "your_granted": past.granted[agent_id],
-        }
-        if config.communication:
-            # Other agents' public claims (attribution is visible, but their
-            # true takes are not). The total actually removed from the pool is
-            # inferable from consecutive pool sizes, so we surface it directly.
-            entry["claims"] = {
-                other: past.claims[other] for other in sorted(past.claims) if other != agent_id
+        history.append(
+            {
+                "round": past.round,
+                "pool_before": past.pool_before,
+                "pool_after": past.pool_after,
+                "first_announcements": dict(past.first_announcements),
+                "second_announcements": dict(past.second_announcements),
+                "your_first_take": past.first_takes[agent_id],
+                "your_final_take": past.final_takes[agent_id],
+                "your_revision": past.revisions[agent_id],
+                "your_granted": past.granted[agent_id],
             }
-            entry["inferred_total_take"] = past.pool_before - past.pool_after
-        history.append(entry)
+        )
+    return history
 
+
+def build_first_observation(
+    log: "GameLog", agent_id: int, config: "GameConfig", pool: int, round: int
+) -> Observation:
+    """The observation entering the first-phase call: own history only, no
+    agent has announced anything yet this round."""
     return Observation(
         agent_id=agent_id,
         round=round,
         pool=pool,
         n_agents=config.n_agents,
         growth_factor=config.growth_factor,
-        communication=config.communication,
-        history=history,
+        phase="first",
+        history=_history(log, agent_id),
+    )
+
+
+def build_second_observation(
+    log: "GameLog",
+    agent_id: int,
+    config: "GameConfig",
+    pool: int,
+    round: int,
+    first_announcements: dict[int, int],
+    first_takes: dict[int, int],
+) -> Observation:
+    """The observation entering the second-phase call: every agent's first
+    announcement is now public, plus this agent's own first take (restated,
+    since this is a fresh call and not a continued conversation). No agent's
+    first take, and no pool result of the first take, is visible here."""
+    others = {other: v for other, v in first_announcements.items() if other != agent_id}
+    return Observation(
+        agent_id=agent_id,
+        round=round,
+        pool=pool,
+        n_agents=config.n_agents,
+        growth_factor=config.growth_factor,
+        phase="second",
+        history=_history(log, agent_id),
+        own_first_announcement=first_announcements[agent_id],
+        own_first_take=first_takes[agent_id],
+        other_first_announcements=others,
     )

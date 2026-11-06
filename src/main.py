@@ -29,8 +29,7 @@ def _load_dotenv(path: Path = Path(".env")) -> None:
 def _cmd_list(args: argparse.Namespace) -> int:
     for name, exp in sorted(CONDITIONS.items()):
         kinds = sorted({s.get("type", "scripted") for s in exp.agent_specs})
-        comm = "broadcast" if exp.game.communication else "no-comm"
-        print(f"{name:24s} agents={','.join(kinds):10s} {comm:10s} seeds={len(exp.seeds)}")
+        print(f"{name:24s} agents={','.join(kinds):10s} seeds={len(exp.seeds)}")
     return 0
 
 

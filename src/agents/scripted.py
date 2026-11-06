@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..game.events import Action
+from ..game.events import FirstPhaseAction, SecondPhaseAction
 from ..information.observation import Observation
 from .base import Agent
 
@@ -25,7 +25,7 @@ def _fair(obs: Observation) -> int:
 
 TAKE_POLICIES = {"greedy": _greedy, "sustainable": _sustainable, "fair": _fair}
 
-# --- claim policies: what to broadcast (only used with communication) -------
+# --- claim policies: what to announce ---------------------------------------
 
 
 def _honest(take: int, obs: Observation, underreport_k: int) -> int:
@@ -47,14 +47,19 @@ CLAIM_POLICIES = {"honest": _honest, "underreport": _underreport, "always_lie": 
 
 class ScriptedAgent(Agent):
     """Deterministic baseline = a take-policy x a claim-policy. No LLM. Used to
-    validate the environment and metrics (specs.md §5)."""
+    validate the environment and metrics (specs.md §5).
+
+    The take-policy sets both ``first_take`` and ``final_take`` (it is a
+    static function of the visible pool, so it does not change within a
+    round). The claim-policy sets both announcements the same way, so
+    ``revise`` is ``False`` unless the policy itself is non-deterministic.
+    """
 
     def __init__(
         self,
         agent_id: int,
         take_policy: str = "fair",
         claim_policy: str = "honest",
-        communication: bool = True,
         underreport_k: int = 1,
     ):
         super().__init__(agent_id)
@@ -64,13 +69,20 @@ class ScriptedAgent(Agent):
             raise ValueError(f"unknown claim_policy: {claim_policy!r}")
         self.take_policy = take_policy
         self.claim_policy = claim_policy
-        self.communication = communication
         self.underreport_k = underreport_k
 
-    def act(self, obs: Observation) -> Action:
+    def _take_and_announcement(self, obs: Observation) -> tuple[int, int]:
         take = max(0, TAKE_POLICIES[self.take_policy](obs))
-        if self.communication:
-            claimed = CLAIM_POLICIES[self.claim_policy](take, obs, self.underreport_k)
-        else:
-            claimed = None
-        return Action(take=take, claimed_take=claimed, parse_status="ok")
+        announcement = CLAIM_POLICIES[self.claim_policy](take, obs, self.underreport_k)
+        return take, announcement
+
+    def act_first(self, obs: Observation) -> FirstPhaseAction:
+        take, announcement = self._take_and_announcement(obs)
+        return FirstPhaseAction(first_announcement=announcement, first_take=take, parse_status="ok")
+
+    def act_second(self, obs: Observation) -> SecondPhaseAction:
+        take, announcement = self._take_and_announcement(obs)
+        revise = announcement != obs.own_first_announcement
+        return SecondPhaseAction(
+            revise=revise, second_announcement=announcement, final_take=take, parse_status="ok"
+        )

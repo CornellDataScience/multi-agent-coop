@@ -7,8 +7,9 @@ from dataclasses import asdict, dataclass
 class GameConfig:
     """All game parameters (specs.md §3.2) plus information flags.
 
-    ``communication=False`` is the no-broadcast control condition.
     ``horizon_known`` stays False for v1: agents are never told ``max_rounds``.
+    Every round is a pre-announce-with-revision round (see specs.md §3.1):
+    announcements and the two-take mechanic are always on.
     """
 
     n_agents: int = 3
@@ -18,7 +19,6 @@ class GameConfig:
     pool_cap: int | None = None
     overdraw_rule: str = "proportional"
     horizon_known: bool = False
-    communication: bool = True
     seed: int = 0
 
     def __post_init__(self) -> None:

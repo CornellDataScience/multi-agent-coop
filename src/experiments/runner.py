@@ -28,7 +28,6 @@ def build_agent(
             agent_id,
             take_policy=spec.get("take_policy", "fair"),
             claim_policy=spec.get("claim_policy", "honest"),
-            communication=game.communication,
             underreport_k=spec.get("underreport_k", 1),
         )
     if kind == "llm":
@@ -37,7 +36,6 @@ def build_agent(
             model=model_override or spec.get("model", "llama3.1:8b"),
             temperature=spec.get("temperature", 0.7),
             seed=game.seed * 1000 + agent_id,  # distinct, reproducible per agent
-            communication=game.communication,
             fallback_take=spec.get("fallback_take", 0),
             prompt_variant=prompt_variant,
             chat_fn=chat_fn,
@@ -48,7 +46,6 @@ def build_agent(
             model=model_override or spec.get("model", "claude-sonnet-5-5"),
             effort=spec.get("effort", "medium"),
             fallbacks=spec.get("fallbacks", False),
-            communication=game.communication,
             fallback_take=spec.get("fallback_take", 0),
             prompt_variant=prompt_variant,
             chat_fn=chat_fn,
