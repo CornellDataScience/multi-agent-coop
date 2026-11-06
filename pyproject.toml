@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "infocoop"
 version = "0.1.0"
-description = "Fisherman's Dilemma: do LLM agents lie when broadcasting private takes?"
+description = "Simulate and analyze announcement and take behavior in a common-pool game"
 requires-python = ">=3.10"
 dependencies = []
 
@@ -15,10 +15,12 @@ claude = ["anthropic>=0.40"]
 dev = ["pytest>=7"]
 
 [project.scripts]
-infocoop = "infocoop.main:main"
+infocoop = "src.main:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src*"]
+exclude = ["tests*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

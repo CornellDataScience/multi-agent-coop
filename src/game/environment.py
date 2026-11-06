@@ -32,18 +32,20 @@ class Environment:
         agents: list["Agent"],
         condition: str = "unnamed",
         prompt_variant: str | None = None,
+        run_parameters: dict | None = None,
     ):
         if len(agents) != config.n_agents:
             raise ValueError(f"expected {config.n_agents} agents, got {len(agents)}")
         self.config = config
         self.agents = agents
         self.log = GameLog(
-            config=config, seed=config.seed, condition=condition, prompt_variant=prompt_variant
+            config=config, seed=config.seed, condition=condition, prompt_variant=prompt_variant,
+            run_parameters=run_parameters or {},
         )
 
     def run(self) -> GameLog:
         cfg = self.config
-        state = GameState.initial(cfg.n_agents, cfg.initial_pool)
+        state = GameState.initial(cfg.initial_pool)
 
         while True:
             pool_before = state.pool
@@ -89,9 +91,6 @@ class Environment:
 
             granted = apportion(final_takes, pool_before, cfg.overdraw_rule)
             pool_after = pool_before - sum(granted.values())
-
-            for i, g in granted.items():
-                state.scores[i] += g
 
             pool_next = pool_after * cfg.growth_factor
             if cfg.pool_cap is not None:

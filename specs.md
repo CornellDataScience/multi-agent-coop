@@ -132,7 +132,7 @@ All metrics are computed from logs by `metrics.py`. Ground truth always comes fr
 src/
 ├── game/
 │   ├── environment.py     # round loop: first-phase call, then second-phase call, pool growth, termination
-│   ├── state.py           # GameState: pool, round, true takes, scores
+│   ├── state.py           # GameState: current pool and round
 │   ├── events.py          # FirstPhaseAction, SecondPhaseAction, RoundResult dataclasses
 │   └── payoff.py          # score computation, overdraw allocation rule (applied to the final take only)
 │
@@ -187,11 +187,8 @@ Log the config and seed with each game so runs are reproducible.
 - Unknown horizon.
 - Numbers-only messages.
 
-### To Confirm
+### Still Open
 
-- Confirm agents are not told the round cap (read from "don't know").
-- Initial pool size \(P_0\) and whether to add a per-round take limit given uncapped doubling.
-- Overdraw rule when requests exceed the pool (default: proportional).
-- Lie severity normalization.
-- Starting model(s) and runs per condition.
-- Sequential vs. simultaneous take order within a round (default: simultaneous).
+- Whether to add round-conditioned analyses for announcement/take gaps and
+  revision rates.
+- Whether future conditions should vary group composition or pool visibility.

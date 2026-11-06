@@ -34,14 +34,35 @@ def _cmd_list(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    if args.seeds is not None and args.seeds < 1:
+        raise SystemExit("--seeds must be at least 1")
+    if args.seed_start < 0:
+        raise SystemExit("--seed-start must be non-negative")
+    if args.fallback_take is not None and args.fallback_take < 0:
+        raise SystemExit("--fallback-take must be non-negative")
+    if args.temperature is not None and args.temperature < 0:
+        raise SystemExit("--temperature must be non-negative")
     exp = get_condition(args.condition)
-    seeds = list(range(args.seeds)) if args.seeds is not None else None
+    seeds = (
+        list(range(args.seed_start, args.seed_start + args.seeds))
+        if args.seeds is not None else None
+    )
     paths = run_condition(
         exp,
         out_dir=args.out,
         model_override=args.model,
         seeds=seeds,
         prompt_variant=args.prompt,
+        game_overrides={k: v for k, v in {
+            "initial_pool": args.initial_pool,
+            "max_rounds": args.rounds,
+            "n_agents": args.agents,
+            "growth_factor": args.growth_factor,
+            "pool_cap": args.pool_cap,
+        }.items() if v is not None},
+        temperature=args.temperature,
+        fallback_take=args.fallback_take,
+        effort=args.effort,
     )
     print(f"Ran '{exp.name}' -> {len(paths)} game(s) in {args.out}")
     for p in paths:
@@ -76,24 +97,38 @@ def _cmd_show(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="infocoop", description="Fisherman's Dilemma harness")
+    parser = argparse.ArgumentParser(
+        prog="infocoop",
+        description="Run and analyze the Fisherman's Dilemma LLM experiments.",
+        epilog="Run 'infocoop run --help' for model and game options.",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("list", help="list available conditions").set_defaults(func=_cmd_list)
+    p_list = sub.add_parser("conditions", aliases=["list"], help="list available experiment conditions")
+    p_list.set_defaults(func=_cmd_list)
 
-    p_run = sub.add_parser("run", help="run a condition over its seeds")
+    p_run = sub.add_parser("run", help="run one condition over one or more seeds")
     p_run.add_argument("condition", choices=sorted(CONDITIONS))
-    p_run.add_argument("--seeds", type=int, default=None, help="override: run seeds 0..N-1")
-    p_run.add_argument(
-        "--model", default=None,
-        help="model ID to use (for example llama3.1:8b or qwen3:8b; defaults to the condition's model)",
-    )
-    p_run.add_argument(
-        "--prompt", default=None, choices=sorted(VARIANTS),
-        help="prompt variant from agents/prompt_variants.py",
-    )
-    p_run.add_argument("--out", default="results", help="output directory")
-    p_run.add_argument("--no-metrics", action="store_true", help="skip metrics summary")
+    run_group = p_run.add_argument_group("run selection")
+    run_group.add_argument("--seeds", type=int, help="number of seeds to run (default: condition setting)")
+    run_group.add_argument("--seed-start", type=int, default=0, help="first seed when --seeds is set")
+    run_group.add_argument("--out", default="results", help="directory for JSONL game logs")
+
+    model_group = p_run.add_argument_group("model settings")
+    model_group.add_argument("--model", help="model ID override (e.g. llama3.1:8b or claude-sonnet-5-5)")
+    model_group.add_argument("--prompt", choices=sorted(VARIANTS), help="prompt wording variant")
+    model_group.add_argument("--temperature", type=float, help="Ollama sampling temperature")
+    model_group.add_argument("--effort", choices=["low", "medium", "high"], help="Claude reasoning effort")
+    model_group.add_argument("--fallback-take", type=int, help="take used after invalid model output")
+
+    game_group = p_run.add_argument_group("game settings")
+    game_group.add_argument("--agents", type=int, help="number of agents; condition lineup repeats cyclically")
+    game_group.add_argument("--rounds", type=int, help="maximum rounds (agents are not told this value)")
+    game_group.add_argument("--initial-pool", type=int, help="fish in the pool at the start of the game")
+    game_group.add_argument("--growth-factor", type=int, help="pool multiplier after each round")
+    game_group.add_argument("--pool-cap", type=int, help="maximum pool size; default is no cap")
+
+    p_run.add_argument("--no-metrics", action="store_true", help="skip the post-run metrics summary")
     p_run.set_defaults(func=_cmd_run)
 
     p_m = sub.add_parser("metrics", help="compute metrics for a game file or directory")

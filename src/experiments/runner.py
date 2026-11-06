@@ -21,6 +21,9 @@ def build_agent(
     model_override: str | None = None,
     chat_fn: Callable | None = None,
     prompt_variant: str = DEFAULT_VARIANT,
+    temperature_override: float | None = None,
+    fallback_take_override: int | None = None,
+    effort_override: str | None = None,
 ) -> Agent:
     kind = spec.get("type", "scripted")
     if kind == "scripted":
@@ -34,9 +37,11 @@ def build_agent(
         return OllamaAgent(
             agent_id,
             model=model_override or spec.get("model", "llama3.1:8b"),
-            temperature=spec.get("temperature", 0.7),
+            temperature=(temperature_override if temperature_override is not None
+                         else spec.get("temperature", 0.7)),
             seed=game.seed * 1000 + agent_id,  # distinct, reproducible per agent
-            fallback_take=spec.get("fallback_take", 0),
+            fallback_take=(fallback_take_override if fallback_take_override is not None
+                           else spec.get("fallback_take", 0)),
             prompt_variant=prompt_variant,
             chat_fn=chat_fn,
         )
@@ -44,9 +49,10 @@ def build_agent(
         return ClaudeAgent(
             agent_id,
             model=model_override or spec.get("model", "claude-sonnet-5-5"),
-            effort=spec.get("effort", "medium"),
+            effort=effort_override or spec.get("effort", "medium"),
             fallbacks=spec.get("fallbacks", False),
-            fallback_take=spec.get("fallback_take", 0),
+            fallback_take=(fallback_take_override if fallback_take_override is not None
+                           else spec.get("fallback_take", 0)),
             prompt_variant=prompt_variant,
             chat_fn=chat_fn,
         )
@@ -60,6 +66,10 @@ def run_condition(
     chat_fn: Callable | None = None,
     seeds: list[int] | None = None,
     prompt_variant: str | None = None,
+    game_overrides: dict | None = None,
+    temperature: float | None = None,
+    fallback_take: int | None = None,
+    effort: str | None = None,
 ) -> list[Path]:
     """Run one condition over its seeds, writing one JSONL game per seed.
 
@@ -78,16 +88,36 @@ def run_condition(
         # Model IDs commonly contain ':' or '/', which are awkward in filenames.
         model_tag = "".join(c if c.isalnum() or c in "._-" else "_" for c in model_override)
         tags.append(model_tag)
+    if uses_llm and temperature is not None:
+        tags.append(f"temp{temperature:g}")
+    if uses_llm and effort:
+        tags.append(effort)
+    if uses_llm and fallback_take is not None:
+        tags.append(f"fallback{fallback_take}")
+    for key, value in sorted((game_overrides or {}).items()):
+        if value is not None:
+            tags.append(f"{key}{value}")
     stem = "_".join([exp.name, *tags])
     paths: list[Path] = []
     for seed in seeds if seeds is not None else exp.seeds:
-        game = replace(exp.game, seed=seed)
+        game = replace(exp.game, seed=seed, **(game_overrides or {}))
+        # Conditions define a default lineup; when group size changes, repeat
+        # that lineup cyclically so homogeneous and mixed conditions both work.
+        specs = [exp.agent_specs[i % len(exp.agent_specs)] for i in range(game.n_agents)]
         agents = [
-            build_agent(i, exp.agent_specs[i], game, model_override, chat_fn, variant)
+            build_agent(i, specs[i], game, model_override, chat_fn, variant,
+                        temperature, fallback_take, effort)
             for i in range(game.n_agents)
         ]
         log = Environment(
-            game, agents, condition=exp.name, prompt_variant=variant if uses_llm else None
+            game, agents, condition=exp.name, prompt_variant=variant if uses_llm else None,
+            run_parameters={
+                "model_override": model_override,
+                "temperature": temperature,
+                "effort": effort,
+                "fallback_take": fallback_take,
+                "prompt_variant": variant if uses_llm else None,
+            },
         ).run()
         path = log.write_jsonl(out_dir / f"{stem}_seed{seed}.jsonl")
         paths.append(path)

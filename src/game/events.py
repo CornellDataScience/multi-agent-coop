@@ -78,9 +78,6 @@ class RoundResult:
     first_actions: dict[int, FirstPhaseAction] = field(default_factory=dict)
     second_actions: dict[int, SecondPhaseAction] = field(default_factory=dict)
 
-    def total_take(self) -> int:
-        return sum(self.granted.values())
-
     def to_dict(self) -> dict:
         return {
             "round": self.round,

@@ -7,13 +7,12 @@ objectives, and how that affects individual and collective outcomes.
 - Full behavioral spec: [`specs.md`](specs.md)
 - Engineering contract / design decisions: [`IMPLEMENTATION_PROMPT.md`](IMPLEMENTATION_PROMPT.md)
 
-Each round is **pre-announce with revision**: every agent publicly announces
-how many fish it plans to take, then privately takes fish (which may differ
-from the announcement and does not count toward its score); once every
-agent's announcement is visible, each agent explicitly decides whether to
-revise, makes a second public announcement, and takes fish again -- this
-second take is the one that counts, and the overdraw rule applies only to it.
-The remainder doubles to form the next round's pool. Announcements are never
+Each round has two decision stages. First, each agent simultaneously makes a
+public announcement and a private take; that first take is uncounted and does
+not change the pool. Agents then see the first announcements, decide whether
+to revise, and simultaneously make a second announcement and final take. The
+final take is scored and is the only take subject to the overdraw rule. The
+remainder doubles to form the next round's pool. Announcements are never
 verified against the real takes. The environment owns all ground truth;
 metrics are computed only from saved logs.
 
@@ -21,37 +20,101 @@ metrics are computed only from saved logs.
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"         # dev: adds pytest
-.venv/bin/python -m pip install -e ".[dev,llm]"     # also installs the ollama client
-.venv/bin/python -m pip install -e ".[dev,claude]"  # also installs the anthropic client
+.venv/bin/python -m pip install -e ".[dev]"          # development tools
+.venv/bin/python -m pip install -e ".[dev,llm]"      # Ollama backend
+.venv/bin/python -m pip install -e ".[dev,claude]"   # Claude API backend
 ```
 
-Run commands from the repository root. The source tree is a `src` package, so
-invoke the CLI as `src.main`; the project folder name (`multi-agent-coop`) does
-not affect the module path.
+Run the commands below from the repository root. Installation creates the
+`infocoop` terminal command. You can also use `.venv/bin/python -m src.main`
+instead of `.venv/bin/infocoop`.
 
-## Run
+## Terminal guide
+
+### 1. See available conditions and options
 
 ```bash
-.venv/bin/python -m src.main list                         # show conditions
-.venv/bin/python -m src.main run all_sustainable          # deterministic scripted sanity check
-.venv/bin/python -m src.main run one_defector             # greedy liar among sustainable honest agents
-.venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model llama3.1:8b  # Llama via Ollama
-.venv/bin/python -m src.main run broadcast_unverified --seeds 5 --model qwen3:8b     # Qwen via Ollama
-.venv/bin/python -m src.main metrics results/             # aggregate metrics over a directory of games
-.venv/bin/python -m src.main show results/                # round-by-round view of every game (add --raw for model output)
+.venv/bin/infocoop --help
+.venv/bin/infocoop conditions
+.venv/bin/infocoop run --help
 ```
 
-Equivalently, with the virtual environment activated: `python -m src.main <args>`.
+`conditions` lists the built-in experiment conditions. Each `run` takes one
+condition name, then optional model and game settings. Unspecified options use
+the condition or game defaults.
 
-LLM conditions need a running [Ollama](https://ollama.com) with the chosen model
-pulled (`ollama pull llama3.1:8b` or `ollama pull qwen3:8b`) and the `llm`
-extra installed. Use `--model` to select a different Ollama model without
-editing code. The selected model is included in output filenames (for example,
-`broadcast_unverified_qwen3_8b_seed0.jsonl`) so runs with different models are
-kept separately. The Claude condition (`broadcast_unverified_claude`) needs
-the `claude` extra installed and an `ANTHROPIC_API_KEY` in `.env` (see
-`.env.example`). Scripted conditions need no LLM and are fully deterministic.
+### 2. Run a condition
+
+Start with a deterministic scripted condition to inspect the game mechanics:
+
+```bash
+.venv/bin/infocoop run all_sustainable
+.venv/bin/infocoop run one_defector
+```
+
+For Ollama, install the `llm` extra, start Ollama, and pull a model. Then run
+the main condition:
+
+```bash
+ollama pull llama3.1:8b
+.venv/bin/infocoop run broadcast_unverified --model llama3.1:8b --seeds 5
+```
+
+The Claude condition uses the Claude API. Install the `claude` extra and set
+`ANTHROPIC_API_KEY` in `.env` (see [`.env.example`](.env.example)):
+
+```bash
+.venv/bin/infocoop run broadcast_unverified_claude --model claude-sonnet-5-5 --seeds 5
+```
+
+### 3. Change run settings from the terminal
+
+These options apply consistently to the model agents in the selected
+condition, so you can compare runs without editing Python files:
+
+| Option | Applies to | Example |
+|---|---|---|
+| `--model` | Ollama or Claude model ID | `--model qwen3:8b` |
+| `--temperature` | Ollama sampling | `--temperature 0.2` |
+| `--effort` | Claude reasoning effort | `--effort high` |
+| `--prompt` | LLM prompt variant | `--prompt neutral_explained` |
+| `--fallback-take` | fallback after invalid output | `--fallback-take 0` |
+| `--seeds N` | number of games | `--seeds 5` |
+| `--seed-start N` | first seed when `--seeds` is set | `--seeds 5 --seed-start 10` |
+| `--agents` | group size; repeats the condition lineup | `--agents 4` |
+| `--rounds` | round limit | `--rounds 8` |
+| `--initial-pool` | starting pool | `--initial-pool 80` |
+| `--growth-factor` | pool growth after each round | `--growth-factor 2` |
+| `--pool-cap` | maximum pool size | `--pool-cap 10000` |
+| `--out` | output directory | `--out results/qwen` |
+
+For example, this runs five Qwen games with a lower sampling temperature and
+a changed pool setup:
+
+```bash
+.venv/bin/infocoop run broadcast_unverified \
+  --model qwen3:8b --temperature 0.2 --prompt neutral_explained \
+  --seeds 5 --initial-pool 80 --rounds 8 --out results/qwen_explained
+```
+
+Each game is saved as JSONL. The filename includes the selected model, prompt,
+and parameter overrides; the JSONL metadata records the game configuration
+and explicit run overrides. Ollama calls use deterministic per-agent seeds
+derived from each game seed. Claude responses are not seed-controlled.
+
+### 4. Inspect and analyze results
+
+```bash
+.venv/bin/infocoop show results/qwen_explained/          # round-by-round replay
+.venv/bin/infocoop show results/qwen_explained/ --raw     # include model responses
+.venv/bin/infocoop metrics results/qwen_explained/        # aggregate across games
+.venv/bin/infocoop metrics results/qwen_explained/<file>.jsonl  # one game
+```
+
+For this experiment, metrics distinguish first-announcement/first-take
+divergence from the final announcement/final-take divergence, and also report
+revision behavior, outcomes, pool sustainability, inequality, overdraw, and
+invalid-output retries or fallbacks.
 
 ### Research metrics
 

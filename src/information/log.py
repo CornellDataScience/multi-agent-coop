@@ -26,6 +26,7 @@ class GameLog:
     seed: int
     condition: str = "unnamed"
     prompt_variant: str | None = None  # None for all-scripted games
+    run_parameters: dict = field(default_factory=dict)
     rounds: list[RoundResult] = field(default_factory=list)
     first_observations: list[dict[int, "Observation"]] = field(default_factory=list)
     second_observations: list[dict[int, "Observation"]] = field(default_factory=list)
@@ -53,6 +54,7 @@ class GameLog:
             "record": "meta",
             "condition": self.condition,
             "prompt_variant": self.prompt_variant,
+            "run_parameters": self.run_parameters,
             "seed": self.seed,
             "config": self.config.to_dict(),
             "cooperative_optimum": self.config.cooperative_optimum(),
