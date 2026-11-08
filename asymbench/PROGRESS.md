@@ -94,3 +94,14 @@ reasons, leaderboard CIs, additive aggregate extras, UI tooling).
 
 **Next:** Phase 3 (verify model ids/prices, $5 pilot, pilot review, $30 first
 trial, results report). Both API keys are present in .env.
+
+## Phase 3 — IN PROGRESS (paused by the user, 2026-11-08)
+
+- **Step A (verify models) — DONE.** Anthropic ids/prices matched the current
+  API reference exactly (no change). OpenRouter ids all exist; three prices
+  updated to provider-reported values. DECISIONS.md #36.
+- **Resume point:** run the pilot (Step B): 4 tasks × (Llama 3.1 8B,
+  gpt-oss-20b, control) × 3 seeds, test agent claude-sonnet-5-5, judge
+  claude-haiku-5-5, budget $5 — then the Step C pilot review
+  (`PILOT_REPORT.md`), Step D first trial ($30, 10 seeds), Step E
+  `RESULTS_FIRST_TRIAL.md`. Spend so far: $0 (everything to date ran on mocks).

@@ -108,3 +108,10 @@ Anything that could affect results is flagged **[results]** and kept as close to
     dependency, installed on demand, not in requirements.txt.
 35. **Chart.js animations disabled** and charts given fixed-height wrappers
     (maintainAspectRatio: false): research tool, and reliable screenshots.
+36. **Model ids and prices verified before the pilot (2026-11-08).** Anthropic ids/prices in
+    models.yaml confirmed against the current Claude API reference: claude-sonnet-5-5 $2/$10,
+    claude-haiku-5-5 $0.10/$0.50 (the sub-100K-prompt rate; our calls are ~2-12K tokens),
+    claude-opus-5-5 $4/$20, claude-fable-5-1 $10/$50 — all matched, no change. OpenRouter ids
+    confirmed present on /models; prices updated to provider-reported values: llama-3.1-8b
+    out $0.05→$0.04, gpt-oss-20b out $0.15→$0.13, llama-3.2-3b $0.02/$0.02→$0.05/$0.33.
+    Runs bill from OpenRouter's per-call reported cost, so these only affect estimates.
