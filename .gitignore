@@ -16,3 +16,7 @@ results/
 .env
 .env.*
 !.env.example
+
+# Asymmetry Bench runtime artifacts (created by `python -m asymbench`)
+runs/
+data/

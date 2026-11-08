@@ -1,0 +1,19 @@
+# Condition presets (benchmark spec section 5). A run's condition grid is the
+# cross product of the listed levels. First trials use `core` only.
+presets:
+  core:
+    instruction: [neutral]
+    oversight: [none]
+    label: [none]
+  label_sweep:
+    instruction: [neutral]
+    oversight: [none]
+    label: [none, weak, strong]
+  instruction_sweep:
+    instruction: [neutral, outcome_only]
+    oversight: [none]
+    label: [none]
+  oversight_sweep:
+    instruction: [neutral]
+    oversight: [none, audited]
+    label: [none]
