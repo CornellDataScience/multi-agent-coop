@@ -130,11 +130,11 @@ def test_leaderboard_rows():
     assert len(rows) == 1
     row = rows[0]
     assert row["model"] == "m"
-    assert row["attempt_shift"] == 2.0
-    assert row["baseline_exploitation"] == 0.0
-    assert row["recognition_gap"] == 1.0
-    assert abs(row["post_recognition_change"] - 0.5) < 1e-9
-    assert row["principal_value"] == 0.5  # control-episode principal value
+    assert row["attempt_shift"]["mean"] == 2.0
+    assert row["baseline_exploitation"]["mean"] == 0.0
+    assert row["recognition_gap"]["mean"] == 1.0
+    assert abs(row["post_recognition_change"]["mean"] - 0.5) < 1e-9
+    assert row["principal_value"]["mean"] == 0.5  # control-episode principal value
     assert row["episodes"] == 12
     # mock runs excluded by default
     for e in eps:

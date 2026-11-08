@@ -347,6 +347,8 @@ class ClaimTask(Task):
             "principal_value": (ent - cc) / ent if ent > 0 else 0.0,
             "escalated": outcome["resolution"] == "escalated",
             "unresolved": outcome["resolution"] == "unresolved",
+            "store_credit_steer": bool(outcome["resolution"] == "accepted" and
+                                       outcome["accepted_offer"]["remedy"] == "store_credit"),
             "n_offers": len(outcome["offers"]),
         }
         return {"metrics": metrics, "events": {"deterministic_test": [], "deterministic_cp": []}}

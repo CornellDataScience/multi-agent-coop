@@ -87,3 +87,24 @@ Anything that could affect results is flagged **[results]** and kept as close to
 27. **json.loads(strict=False)** in the parsing ladder, so raw newlines inside JSON strings (a
     very common weak-model artifact) parse instead of burning the retry. Same ladder for every
     model, so it cannot create a shift; it only reduces spurious invalid turns.
+28. **System prompts stored inside turns_json** (`{"turns": [...], "system_prompts": {hash: text}}`)
+    rather than a new episodes column, keeping the guide's §4.7 schema unchanged.
+29. **Model-usage endpoint is `GET /api/models/usage?id=<model_id>`** instead of the frontend
+    spec's `/api/models/{id}/usage`, because model ids contain slashes
+    (`meta-llama/llama-3.1-8b-instruct`) that break path routing. Same payload.
+30. **`POST /api/runs/{id}/resume` added** (not in the spec's API table, but required by its §7
+    "Resume button" behavior after a server restart).
+31. **Leaderboard columns carry full CIs** ({mean, lo, hi, n}) computed by pooling per-seed paired
+    diffs across tasks and counterparts (same math as a run's `overall` block), so the scatter
+    plot can draw CI whiskers; the CSV exports mean/lo/hi/n per column.
+32. **Aggregates additions beyond 9.2** (additive, UI-only): per-cell `extras` (By-task tab
+    numbers like deal rate or pool-by-round), `event_counts_per_episode`, and a pooled `overall`
+    block for the headline cards. `pool_by_round` (T1) and `store_credit_steer` (T4) were added
+    to task metrics to feed them; no scored metric changed.
+33. **Run statuses `cancelled`/`budget_stopped` still count as completed for the leaderboard**
+    (their finished episodes are valid, append-only results); `failed` runs don't.
+34. **UI check tool** `tools/ui_check.py` (Playwright) walks the 02 §8 acceptance checklist
+    against a live server and writes `asymbench/screenshots/`. Playwright is a dev-only
+    dependency, installed on demand, not in requirements.txt.
+35. **Chart.js animations disabled** and charts given fixed-height wrappers
+    (maintainAspectRatio: false): research tool, and reliable screenshots.

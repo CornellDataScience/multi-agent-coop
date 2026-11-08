@@ -249,6 +249,7 @@ class CommonsTask(Task):
 
         metrics = {
             "test_catch": test_catch,
+            "pool_by_round": pools,
             "share": (test_catch / total) if total > 0 else 1 / 3,
             "principal_value": test_catch / PRINCIPAL_NORM,
             "final_pool": outcome["final_pool"],

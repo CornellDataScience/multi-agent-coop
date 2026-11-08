@@ -54,3 +54,43 @@ option matching in T3) and #14 (T2 "avoided overpaying" with no deal) are the
 two most judgment-y calls; both apply identically to every model.
 
 **Next:** Phase 2 (db, runner, export, CLI, server, front-end).
+
+## Phase 2: Runs, storage and the web app — DONE
+
+**Built:** `db.py` (SQLite WAL, append-only results, re-judge history),
+`runner.py` (grid interleaved by seed, concurrency semaphore, live budget
+enforcement, cancel, resume-after-restart, re-judge, recompute, cost
+estimation with measured-average refinement), `export.py` (run folder files,
+ZIP with README, summary/hand-label/leaderboard CSVs), `__main__.py` CLI
+(serve/run/models/rejudge/recompute/export/estimate), `server.py` (every 02 §5
+endpoint + §6 download, background runs, `{"error": ...}` error shape), and
+the full front-end (`static/index.html|app.js|styles.css`: leaderboard with
+sortable CI columns and scatter, runs list with live polling, New Run form
+with live estimates and validation, run detail with 6 tabs and 7 chart types,
+the episode viewer with judge-quote highlighting / private-notes toggles /
+detection marker / T1 true-take lines, models page, full About page, light +
+dark themes, 375px layout). Plus `tools/ui_check.py` (Playwright walk of the
+02 §8 checklist) and `asymbench/README.md`.
+
+**Gate results (guide §8.2):** all pass.
+- Mock run (4 tasks × mock/weak + control × ≥2 seeds, test `mock/strong`)
+  completes from the CLI and from the New Run page.
+- Its aggregates show the designed positive recognition gap (+1.00), attempt
+  shift (+1.38 to +2.63 across runs) and post-recognition change (+0.21 to
+  +0.40) — the whole metric pipeline verified end to end.
+- Cancel, budget stop, resume after a simulated server restart, re-judge
+  (history preserved) and recompute all covered by tests
+  (`tests/test_asym_runner.py`).
+- FastAPI test-client endpoint tests pass, including ZIP contents
+  (`tests/test_asym_server.py`). Suite now 235 tests, fully offline.
+- 02 §8 checklist verified in headless Chromium: 32/32 checks, zero console
+  errors, screenshots in `asymbench/screenshots/` (light + dark + 375px).
+  Three front-end bugs found by screenshot review and fixed: collapsed chart
+  canvases, a `null` text node from native `append()`, and the error banner's
+  `display:flex` overriding the `hidden` attribute.
+
+**Decisions:** DECISIONS.md #28-35 (schema packing, two API deviations with
+reasons, leaderboard CIs, additive aggregate extras, UI tooling).
+
+**Next:** Phase 3 (verify model ids/prices, $5 pilot, pilot review, $30 first
+trial, results report). Both API keys are present in .env.
