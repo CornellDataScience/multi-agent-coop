@@ -33,6 +33,12 @@ EST_SURVEY = (2500, 150)
 _cancel_events: dict[str, asyncio.Event] = {}
 _write_lock = asyncio.Lock()
 
+# A run being executed (by this process OR an external CLI process) heartbeats
+# into its progress JSON; startup recovery only declares a run dead when the
+# heartbeat is stale, so a server start can no longer fail a live CLI run.
+HEARTBEAT_INTERVAL_S = 20
+HEARTBEAT_STALE_S = 120
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -247,7 +253,34 @@ def _progress(run_id: str) -> dict:
     eps = db.episodes_for_aggregation(run_id)
     return {"done": sum(1 for e in eps if e["status"] == "done"),
             "total": len(eps),
-            "failed": sum(1 for e in eps if e["status"] == "failed")}
+            "failed": sum(1 for e in eps if e["status"] == "failed"),
+            "heartbeat_at": _now()}
+
+
+async def _heartbeat_loop(run_id: str) -> None:
+    while True:
+        await asyncio.sleep(HEARTBEAT_INTERVAL_S)
+        try:
+            run = db.get_run(run_id)
+            if run is None:
+                return
+            prog = dict(run.get("progress") or {})
+            prog["heartbeat_at"] = _now()
+            async with _write_lock:
+                db.update_run(run_id, progress=prog)
+        except Exception:  # noqa: BLE001 - a heartbeat must never kill the run
+            pass
+
+
+def _heartbeat_fresh(progress_json: str | None) -> bool:
+    try:
+        hb = (json.loads(progress_json) if progress_json else {}).get("heartbeat_at")
+        if not hb:
+            return False
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(hb)).total_seconds()
+        return age < HEARTBEAT_STALE_S
+    except (ValueError, TypeError):
+        return False
 
 
 async def execute_run(run_id: str) -> None:
@@ -256,7 +289,8 @@ async def execute_run(run_id: str) -> None:
         raise ValueError(f"unknown run {run_id}")
     cfg = run["config"]
     cancel = _cancel_events.setdefault(run_id, asyncio.Event())
-    db.update_run(run_id, status="running", error=None)
+    db.update_run(run_id, status="running", error=None, progress=_progress(run_id))
+    hb_task = asyncio.get_running_loop().create_task(_heartbeat_loop(run_id))
 
     conn_rows = db.connect().execute(
         "SELECT id, task, seed, counterpart_model, is_control, condition_json "
@@ -308,7 +342,10 @@ async def execute_run(run_id: str) -> None:
                                       finished_at=_now())
                     db.update_run(run_id, progress=_progress(run_id))
 
-    await asyncio.gather(*(one(r) for r in pending))
+    try:
+        await asyncio.gather(*(one(r) for r in pending))
+    finally:
+        hb_task.cancel()
 
     aggregates = metrics_mod.aggregate_episodes(db.episodes_for_aggregation(run_id))
     if cancel.is_set():
@@ -317,7 +354,8 @@ async def execute_run(run_id: str) -> None:
         status = "budget_stopped"
     else:
         status = "done"
-    db.update_run(run_id, status=status, aggregates=aggregates, progress=_progress(run_id))
+    db.update_run(run_id, status=status, error=None, aggregates=aggregates,
+                  progress=_progress(run_id))
     export.write_run_files(run_id)
 
 
@@ -335,14 +373,23 @@ def resume_run(run_id: str) -> None:
 
 
 def mark_interrupted_runs() -> int:
-    """On server start: runs left 'running' become failed('server restarted')."""
+    """On server start: runs left 'running' with a STALE heartbeat become
+    failed('server restarted'). A fresh heartbeat means another process (for
+    example a CLI run) is actively executing the run - leave it alone."""
     conn = db.connect()
-    cur = conn.execute("UPDATE runs SET status = 'failed', error = 'server restarted' "
-                       "WHERE status IN ('running', 'queued')")
-    conn.execute("UPDATE episodes SET status = 'failed', error = 'server restarted' "
-                 "WHERE status = 'running'")
+    n = 0
+    rows = conn.execute("SELECT id, progress_json FROM runs "
+                        "WHERE status IN ('running', 'queued')").fetchall()
+    for row in rows:
+        if _heartbeat_fresh(row["progress_json"]):
+            continue
+        conn.execute("UPDATE runs SET status = 'failed', error = 'server restarted' "
+                     "WHERE id = ?", (row["id"],))
+        conn.execute("UPDATE episodes SET status = 'failed', error = 'server restarted' "
+                     "WHERE run_id = ? AND status = 'running'", (row["id"],))
+        n += 1
     conn.commit()
-    return cur.rowcount
+    return n
 
 
 # ---------------------------------------------------------------- rejudge / recompute

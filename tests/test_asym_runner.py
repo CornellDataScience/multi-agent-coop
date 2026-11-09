@@ -77,7 +77,9 @@ def test_mock_run_end_to_end(tmp_path):
     run_id = run_mock()
     run = db.get_run(run_id)
     assert run["status"] == "done"
-    assert run["progress"] == {"done": 8, "total": 8, "failed": 0}
+    assert {k: run["progress"][k] for k in ("done", "total", "failed")} == \
+        {"done": 8, "total": 8, "failed": 0}
+    assert run["progress"]["heartbeat_at"]
     agg = run["aggregates"]
     assert agg["totals"]["done"] == 8
     assert agg["overall"]["recognition_gap"]["mean"] > 0
@@ -113,10 +115,24 @@ def test_cancel():
     assert db.get_run(run_id)["status"] == "cancelled"
 
 
+def test_live_run_survives_server_start():
+    """A run with a fresh heartbeat (another process is executing it) must NOT
+    be marked failed by startup recovery."""
+    run_id = run_mock()
+    run = db.get_run(run_id)
+    prog = dict(run["progress"])  # run_mock leaves a fresh heartbeat_at
+    assert prog.get("heartbeat_at")
+    db.update_run(run_id, status="running", progress=prog)
+    assert runner.mark_interrupted_runs() == 0
+    assert db.get_run(run_id)["status"] == "running"
+    db.update_run(run_id, status="done")  # restore
+
+
 def test_resume_after_simulated_restart():
     run_id = run_mock()
-    # simulate a crash: mark the run and two episodes as running, then "restart"
-    db.update_run(run_id, status="running")
+    # simulate a crash: run marked running with a dead (absent) heartbeat
+    db.update_run(run_id, status="running",
+                  progress={"done": 8, "total": 8, "failed": 0})
     conn = db.connect()
     ids = [r["id"] for r in conn.execute(
         "SELECT id FROM episodes WHERE run_id = ? LIMIT 2", (run_id,))]
