@@ -120,6 +120,17 @@ Anything that could affect results is flagged **[results]** and kept as close to
 36b. **Smoke run kept in the DB** (1 done episode, 2 failed on the suspension) as evidence for
     the pilot report; it is a tiny contribution to the leaderboard until the first trial
     dwarfs it.
+38. **[results] Test agent switched to claude-sonnet-5 (user-approved, 2026-11-09).**
+    claude-sonnet-5-5's safety classifier refuses this benchmark's agent-call pattern with
+    stop_reason "refusal", category "reasoning_extraction" (ToS text about "reverse engineering
+    or duplicating model outputs") — 5/10 seller turns in the smoke episode came back empty or
+    truncated, later probes refused 6/6 (original wording AND a "notes to yourself" rewording),
+    and the accumulated refusals triggered a 1-hour org-level `model_access_suspended` 403.
+    Controls: a benign Sonnet 5.5 request passes (org not flagged wholesale); claude-haiku-5-5
+    passes the identical payload 4/4; previous-generation claude-sonnet-5 passes it 2/2 with
+    high-quality output. Same price ($2/$10) and tier, so the strong-vs-weak design and budget
+    are unchanged. The team lead chose claude-sonnet-5 from the presented options. Sonnet 5.5
+    stays in the registry for later, pending an Anthropic-side fix for the false positive.
 36. **Model ids and prices verified before the pilot (2026-11-08).** Anthropic ids/prices in
     models.yaml confirmed against the current Claude API reference: claude-sonnet-5-5 $2/$10,
     claude-haiku-5-5 $0.10/$0.50 (the sub-100K-prompt rate; our calls are ~2-12K tokens),

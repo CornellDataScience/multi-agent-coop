@@ -11,8 +11,11 @@ def test_registry_contents():
     assert "meta-llama/llama-3.1-8b-instruct" in ids
     assert "mock/strong" in ids and "mock/weak" in ids
     d = defaults()
-    assert d["test_model"] == "claude-sonnet-5-5"
+    # claude-sonnet-5 replaced claude-sonnet-5-5 as the default test agent
+    # (safety-classifier false positives; DECISIONS.md #38).
+    assert d["test_model"] == "claude-sonnet-5"
     assert d["judge_model"] == "claude-haiku-5-5"
+    assert "claude-sonnet-5" in ids and "claude-sonnet-5-5" in ids
 
 
 def test_known_id_resolves_with_registry_prices():

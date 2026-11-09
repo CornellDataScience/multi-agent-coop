@@ -5,6 +5,9 @@ models:
   - {id: claude-fable-5-1, provider: anthropic, label: "Claude Fable 5.1", tier: S, price_in: 10.0, price_out: 50.0, max_tokens: 4000}
   - {id: claude-opus-5-5, provider: anthropic, label: "Claude Opus 5.5", tier: S, price_in: 4.0, price_out: 20.0, max_tokens: 4000}
   - {id: claude-sonnet-5-5, provider: anthropic, label: "Claude Sonnet 5.5", tier: S, price_in: 2.0, price_out: 10.0, max_tokens: 4000}
+  # Sonnet 5.5's safety classifier refuses this benchmark's call pattern (see
+  # DECISIONS.md #38); Sonnet 5 is the working default test agent.
+  - {id: claude-sonnet-5, provider: anthropic, label: "Claude Sonnet 5", tier: S, price_in: 2.0, price_out: 10.0, max_tokens: 4000}
   # OpenRouter prices verified against /models on 2026-11-08 (runs use the
   # provider-reported cost per call anyway; these only feed estimates).
   - {id: meta-llama/llama-3.2-3b-instruct, provider: openrouter, label: "Llama 3.2 3B", tier: C0, price_in: 0.05, price_out: 0.33, max_tokens: 1500}
@@ -14,7 +17,7 @@ models:
   - {id: mock/strong, provider: mock, label: "Mock strong", tier: mock, price_in: 0, price_out: 0}
   - {id: mock/weak, provider: mock, label: "Mock weak", tier: mock, price_in: 0, price_out: 0}
 defaults:
-  test_model: claude-sonnet-5-5
+  test_model: claude-sonnet-5  # was claude-sonnet-5-5; see DECISIONS.md #38
   counterparts: [meta-llama/llama-3.1-8b-instruct, openai/gpt-oss-20b]
   judge_model: claude-haiku-5-5
   seeds: 10

@@ -86,7 +86,7 @@ def main() -> int:
         goto(page, f"/runs/{run_id}")  # re-render with final aggregates
         snap(page, "03_run_summary")
         txt = page.inner_text("#app")
-        check("summary shows recognition gap card", "Recognition gap" in txt)
+        check("summary shows recognition gap card", "recognition gap" in txt.lower())
         check("summary shows CI brackets", "[" in txt and "]" in txt)
         check("summary shows n=", "n=" in txt)
 
@@ -97,12 +97,20 @@ def main() -> int:
             snap(page, shot)
         check("episodes tab lists 16 rows", "16" in page.inner_text("#app"))
 
-        # ---------------- Episode viewer (an episode WITH judge events)
+        # ---------------- Episode viewer (an episode WITH quoted judge events;
+        # commons episodes may carry only deterministic breaches, so prefer a
+        # two-party task row under the attempts filter)
         page.click(".tabs button:has-text('Episodes')")
         time.sleep(0.8)
         page.check("label:has-text('only with attempt events') input")
         time.sleep(0.8)
-        page.click("tbody tr.clickable >> nth=0")
+        preferred = page.locator(
+            "tbody tr.clickable", has=page.locator("td", has_text="T4 Claim"))
+        if not preferred.count():
+            preferred = page.locator(
+                "tbody tr.clickable", has=page.locator("td", has_text="T2 Sale"))
+        (preferred.first if preferred.count()
+         else page.locator("tbody tr.clickable").first).click()
         page.wait_for_url("**/#/episodes/*", timeout=5000)
         time.sleep(0.8)
         snap(page, "08_episode_viewer")

@@ -139,7 +139,7 @@ const errorBarsPlugin = {
         const e = ds.errorBars[i];
         if (!e) return;
         ctx.save();
-        ctx.strokeStyle = ds.borderColor || "#888";
+        ctx.strokeStyle = cssVar("--text-dim") || "#52514e"; // ink, not series color
         ctx.lineWidth = 1.2;
         const y = chart.scales[meta.yAxisID || "y"];
         const x = chart.scales[meta.xAxisID || "x"];
@@ -169,28 +169,128 @@ if (window.Chart) Chart.register(errorBarsPlugin);
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
-const PALETTE = () => [cssVar("--accent"), cssVar("--red"), cssVar("--amber"),
-  cssVar("--purple"), cssVar("--green"), "#888888"];
+// Categorical series slots in fixed order (validated palette); gray is the
+// reference color for the control, never a series slot.
+const SERIES = () => [cssVar("--s1"), cssVar("--s2"), cssVar("--s3"), cssVar("--s4"),
+  cssVar("--violet")];
+const PALETTE = SERIES; // legacy alias
+const GRAYREF = () => cssVar("--muted");
+const isDark = () => document.documentElement.getAttribute("data-theme") === "dark";
+// Two steps of the sequential blue ramp (ordered pairs like before/after).
+const seqPair = () => isDark() ? ["#6da7ec", "#184f95"] : ["#86b6ef", "#256abf"];
 
-function chartBox(title, config, { caption = "", dataTable = null, height = 300 } = {}) {
+function deepMerge(base, over) {
+  if (!over) return base;
+  const out = { ...base };
+  for (const [k, v] of Object.entries(over)) {
+    out[k] = (v && typeof v === "object" && !Array.isArray(v) &&
+      base[k] && typeof base[k] === "object" && !Array.isArray(base[k]))
+      ? deepMerge(base[k], v) : v;
+  }
+  return out;
+}
+
+function tuneConfig(config) {
+  const surface = cssVar("--surface");
+  const datasets = (config.data && config.data.datasets) || [];
+  const horizontal = config.options?.indexAxis === "y";
+  for (const ds of datasets) {
+    const type = ds.type || config.type;
+    if (type === "bar") {
+      // Mark specs: thin bars, 4px rounded data-end, square at the baseline.
+      ds.maxBarThickness = ds.maxBarThickness ?? 24;
+      ds.borderRadius = ds.borderRadius ?? 4;
+      ds.borderSkipped = ds.borderSkipped ?? "start";
+      ds.categoryPercentage = ds.categoryPercentage ?? 0.6;
+      ds.barPercentage = ds.barPercentage ?? 0.85;
+    } else if (type === "line") {
+      ds.borderWidth = ds.borderWidth ?? 2;
+      ds.pointRadius = ds.pointRadius ?? 4;
+      ds.pointBorderColor = ds.pointBorderColor ?? surface; // surface ring
+      ds.pointBorderWidth = ds.pointBorderWidth ?? 2;
+      ds.tension = ds.tension ?? 0.25;
+      ds.fill = ds.fill ?? false;
+    } else if (type === "scatter") {
+      ds.pointRadius = ds.pointRadius ?? 6;
+      ds.pointBorderColor = ds.pointBorderColor ?? surface;
+      ds.pointBorderWidth = ds.pointBorderWidth ?? 2;
+    }
+  }
+  const catAxis = { grid: { display: false }, border: { color: cssVar("--baseline") },
+    ticks: { color: cssVar("--muted") } };
+  const valAxis = { grid: { color: cssVar("--grid"), drawTicks: false },
+    border: { display: false }, ticks: { color: cssVar("--muted") } };
+  // Error-bar whiskers must fit inside the scale, not get clipped at the bar top.
+  let ebLo = null, ebHi = null;
+  for (const ds of datasets) {
+    for (const e of ds.errorBars || []) {
+      if (!e) continue;
+      if (e.yLo != null) ebLo = ebLo == null ? e.yLo : Math.min(ebLo, e.yLo);
+      if (e.yHi != null) ebHi = ebHi == null ? e.yHi : Math.max(ebHi, e.yHi);
+    }
+  }
+  if (ebLo != null || ebHi != null) {
+    const span = (ebHi ?? ebLo) - (ebLo ?? 0) || Math.abs(ebHi ?? ebLo) || 1;
+    if (ebHi != null) valAxis.suggestedMax = ebHi + 0.08 * span;
+    if (ebLo != null) valAxis.suggestedMin = Math.min(0, ebLo - 0.08 * span);
+    if (ebLo != null && ebLo > 0 && config.type === "scatter") {
+      valAxis.suggestedMin = ebLo - 0.08 * span; // scatter need not anchor at zero
+    }
+  }
+  const defaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: datasets.length >= 2, // one series needs no legend box
+        labels: { boxWidth: 10, boxHeight: 10, color: cssVar("--text-dim"),
+          font: { size: 11 } },
+      },
+      tooltip: {
+        backgroundColor: surface, titleColor: cssVar("--text"),
+        bodyColor: cssVar("--text-dim"), borderColor: cssVar("--baseline"),
+        borderWidth: 1, cornerRadius: 8, padding: 9, displayColors: true,
+        boxWidth: 8, boxHeight: 8,
+      },
+    },
+    scales: config.type === "scatter"
+      ? { x: deepMerge(valAxis, {}), y: deepMerge(valAxis, {}) }
+      : horizontal
+        ? { x: deepMerge(valAxis, {}), y: deepMerge(catAxis, {}) }
+        : { x: deepMerge(catAxis, {}), y: deepMerge(valAxis, {}) },
+  };
+  config.options = deepMerge(defaults, config.options || {});
+}
+
+function autoTable(config) {
+  const d = config.data;
+  if (!d || !d.labels || !d.datasets || !d.datasets.length) return null;
+  const fmtCell = (v) => v == null ? "—"
+    : typeof v === "number" ? (Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(2))
+    : typeof v === "object" ? fmtCell(v.y) : String(v);
+  return simpleTable(["", ...d.labels.map(String)],
+    d.datasets.map((ds) => [ds.label || "value", ...ds.data.map(fmtCell)]));
+}
+
+function chartBox(title, config, { caption = "", dataTable = null, height = 240,
+  wide = false } = {}) {
   const id = `chart-${chartSeq++}`;
   const canvas = el("canvas", { id, role: "img", "aria-label": title });
   const wrap = el("div", { style: `position:relative; height:${height}px` }, canvas);
-  config.options = Object.assign({ responsive: true, maintainAspectRatio: false },
-    config.options || {});
-  const box = el("div", { class: "chart-box" },
-    el("div", { class: "row" },
-      el("strong", {}, title), el("span", { class: "spacer" })),
+  tuneConfig(config);
+  const table = dataTable || autoTable(config);
+  const box = el("div", { class: `chart-box${wide ? " wide" : ""}` },
+    el("div", { class: "chart-title" }, title),
     wrap,
     caption ? el("div", { class: "caption" }, caption) : null);
-  if (dataTable) {
-    const wrap = el("div", { hidden: "hidden" }, dataTable);
+  if (table) {
+    const tWrap = el("div", { hidden: "hidden" }, table);
     const btn = el("button", { class: "chart-data-toggle notes-toggle" }, "Show data");
     btn.addEventListener("click", () => {
-      wrap.hidden = !wrap.hidden;
-      btn.textContent = wrap.hidden ? "Show data" : "Hide data";
+      tWrap.hidden = !tWrap.hidden;
+      btn.textContent = tWrap.hidden ? "Show data" : "Hide data";
     });
-    box.append(btn, wrap);
+    box.append(btn, tWrap);
   }
   let tries = 0;
   const init = () => {
@@ -201,8 +301,9 @@ function chartBox(title, config, { caption = "", dataTable = null, height = 300 
       return;
     }
     if (!node || !node.isConnected) return;
-    Chart.defaults.color = cssVar("--text-dim");
-    Chart.defaults.borderColor = cssVar("--border");
+    Chart.defaults.color = cssVar("--muted");
+    Chart.defaults.borderColor = cssVar("--grid");
+    Chart.defaults.font.size = 11;
     Chart.defaults.animation = false;  // a data tool, not a dashboard demo
     charts[id] = new Chart(node, config);
   };
@@ -289,6 +390,12 @@ const LB_COLUMNS = [
     tip: "Scored attempts per turn after the recognition turn minus before it, pooled over episodes with recognition." },
 ];
 
+// The table shows the five headline columns; the rest live in the expanded row.
+const LB_HEADLINE_KEYS = ["principal_value", "advantage_captured", "attempt_shift",
+  "recognition_gap", "post_recognition_change"];
+const LB_HEADLINE = LB_COLUMNS.filter((c) => LB_HEADLINE_KEYS.includes(c.key));
+const LB_DETAIL = LB_COLUMNS.filter((c) => !LB_HEADLINE_KEYS.includes(c.key));
+
 async function pageLeaderboard() {
   const app = $("#app");
   const params = new URLSearchParams();
@@ -351,7 +458,7 @@ async function pageLeaderboard() {
     });
     const head = el("tr", {},
       el("th", {}, "#"), el("th", {}, "Model"),
-      LB_COLUMNS.map((c) => {
+      LB_HEADLINE.map((c) => {
         const th = el("th", { class: "num sortable", title: c.tip },
           c.label, " ", el("span", { class: "dir" }, c.dir),
           sortKey === c.key ? (sortAsc ? " ▲" : " ▼") : "");
@@ -369,14 +476,18 @@ async function pageLeaderboard() {
         el("td", {}, String(i + 1)),
         el("td", {}, el("div", {}, r.label || r.model),
           el("div", { class: "mono dim small" }, r.model)),
-        LB_COLUMNS.map((c) => el("td", { class: "num" }, ciSpan(r[c.key], c.d))),
+        LB_HEADLINE.map((c) => el("td", { class: "num" }, ciSpan(r[c.key], c.d))),
         el("td", { class: "num" }, String(r.episodes)),
         el("td", {}, (r.runs || []).slice(0, 3).map((rid) =>
           el("a", { href: `#/runs/${rid}`, class: "small", onclick: (e) => e.stopPropagation() },
             rid.slice(-6) + " ")),
           (r.runs || []).length > 3 ? el("span", { class: "dim small" }, `+${r.runs.length - 3}`) : null));
       const expand = el("tr", { class: "expand-row", hidden: "" },
-        el("td", { colspan: String(4 + LB_COLUMNS.length) },
+        el("td", { colspan: String(4 + LB_HEADLINE.length) },
+          el("div", { class: "row", style: "margin:2px 0 10px" },
+            LB_DETAIL.map((c) => el("span", { class: "stat-mini", title: c.tip },
+              el("span", { class: "overline" }, c.label + (c.dir ? ` ${c.dir}` : "")),
+              el("span", { class: "v" }, ciSpan(r[c.key], c.d))))),
           perTaskBreakdown(r)));
       tr.addEventListener("click", () => { expand.hidden = !expand.hidden; });
       body.append(tr, expand);
@@ -909,7 +1020,7 @@ async function pageRunDetail(runId) {
 
 function headlineCard(title, ci, meaning, { d = 2 } = {}) {
   return el("div", { class: "card headline-card" },
-    el("div", { class: "dim small" }, title),
+    el("div", { class: "overline" }, title),
     el("div", { class: "value" }, ci && ci.mean != null ? fmt(ci.mean, d) : "—", zeroBadge(ci)),
     el("div", { class: "ci" }, ci && ci.lo != null && (ci.n == null || ci.n >= 5)
       ? `95% CI [${fmt(ci.lo, d)}, ${fmt(ci.hi, d)}] · n=${ci.n}`
@@ -954,64 +1065,65 @@ function renderSummaryTab(host, run, agg) {
     if (cs.length !== 1) return null; // whiskers only when a single contrast per cp
     return { yLo: cs[0][key].lo, yHi: cs[0][key].hi };
   });
-  const colors = PALETTE();
+  const S = SERIES();
 
   if (cps.length) {
-    host.append(chartBox("Integrity shifts vs the control", {
+    const grid = el("div", { class: "charts-grid" });
+    host.append(grid);
+
+    grid.append(chartBox("Integrity shifts vs the control", {
       type: "bar",
       data: { labels: cps, datasets: [
-        { label: "attempt shift", data: byCp("attempt_shift"), backgroundColor: colors[1],
-          borderColor: colors[1], errorBars: ciByCp("attempt_shift") },
-        { label: "success shift", data: byCp("success_shift"), backgroundColor: colors[2],
-          borderColor: colors[2], hidden: true },
-        { label: "disclosure shift (T2)", data: byCp("disclosure_shift"), backgroundColor: colors[3],
-          borderColor: colors[3], hidden: true },
+        { label: "attempt shift", data: byCp("attempt_shift"), backgroundColor: S[0],
+          borderColor: S[0], errorBars: ciByCp("attempt_shift") },
+        { label: "success shift", data: byCp("success_shift"), backgroundColor: S[1],
+          borderColor: S[1], hidden: true },
+        { label: "disclosure shift (T2)", data: byCp("disclosure_shift"), backgroundColor: S[2],
+          borderColor: S[2], hidden: true },
       ] },
-      options: { scales: { y: { title: { display: true, text: "shift vs control" } } } },
+      options: { plugins: { legend: { display: true } },
+        scales: { y: { title: { display: true, text: "shift vs control" } } } },
     }, {
-      caption: "Per counterpart, averaged over tasks. The control is zero by definition. Toggle series in the legend.",
+      wide: true, height: 260,
+      caption: "Per counterpart, averaged over tasks; whiskers are 95% CIs. The control is zero by definition. Toggle success and disclosure shift in the legend.",
       dataTable: simpleTable(["Counterpart", "Attempt shift", "Success shift", "Disclosure shift"],
         cps.map((cp, i) => [cp, fmt(byCp("attempt_shift")[i]), fmt(byCp("success_shift")[i]),
           fmt(byCp("disclosure_shift")[i])])),
     }));
 
-    host.append(chartBox("Advantage captured", {
+    grid.append(chartBox("Advantage captured", {
       type: "bar",
       data: { labels: cps, datasets: [{ label: "advantage captured",
-        data: byCp("advantage_captured"), backgroundColor: colors[0], borderColor: colors[0],
+        data: byCp("advantage_captured"), backgroundColor: S[0], borderColor: S[0],
         errorBars: ciByCp("advantage_captured") }] },
-      options: { plugins: { legend: { display: false } } },
-    }, { caption: "How much of its advantage the test agent captured; not evidence of wrongdoing by itself." }));
+    }, { caption: "Extra share of value vs the control; not evidence of wrongdoing by itself." }));
 
-    const recRates = cps.map((cp) => {
-      const cells = (agg.cells || []).filter((c) => c.counterpart === cp && !c.is_control);
-      const vals = cells.map((c) => c.fields?.recognized?.mean).filter((v) => v != null);
+    const meanField = (cells, field) => {
+      const vals = cells.map((c) => c.fields?.[field]?.mean).filter((v) => v != null);
       return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-    });
+    };
     const ctrlCells = (agg.cells || []).filter((c) => c.is_control);
-    const ctrlRec = ctrlCells.length
-      ? ctrlCells.map((c) => c.fields?.recognized?.mean).filter((v) => v != null)
-        .reduce((a, b, _, arr) => a + b / arr.length, 0) : null;
-    const surveyByCp = cps.map((cp) => {
-      const cells = (agg.cells || []).filter((c) => c.counterpart === cp && !c.is_control);
-      const vals = cells.map((c) => c.fields?.survey_rating?.mean).filter((v) => v != null);
-      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-    });
-    host.append(chartBox("Recognition", {
+    const cpCells = (cp) => (agg.cells || []).filter((c) => c.counterpart === cp && !c.is_control);
+    const recLabels = [...cps, "control"];
+    const recRates = [...cps.map((cp) => meanField(cpCells(cp), "recognized")),
+      meanField(ctrlCells, "recognized")];
+    const surveyMeans = [...cps.map((cp) => meanField(cpCells(cp), "survey_rating")),
+      meanField(ctrlCells, "survey_rating")];
+
+    // One axis per chart: recognition rate and survey rating are small multiples.
+    grid.append(chartBox("Recognition rate", {
       type: "bar",
-      data: { labels: [...cps, "control"], datasets: [
-        { label: "recognition rate", data: [...recRates, ctrlRec], backgroundColor: colors[1],
-          yAxisID: "y" },
-        { label: "mean survey rating (1-5)", data: [...surveyByCp,
-          ctrlCells.length ? ctrlCells.map((c) => c.fields?.survey_rating?.mean)
-            .filter((v) => v != null).reduce((a, b, _, arr) => a + b / arr.length, 0) : null],
-          backgroundColor: colors[0], yAxisID: "y2", type: "bar" },
-      ] },
-      options: { scales: {
-        y: { min: 0, max: 1, title: { display: true, text: "recognition rate" } },
-        y2: { min: 1, max: 5, position: "right", grid: { drawOnChartArea: false },
-          title: { display: true, text: "survey rating" } } } },
-    }, { caption: "Did the test agent notice weaker counterparts more often, and rate them lower afterwards?" }));
+      data: { labels: recLabels, datasets: [{ label: "recognition rate",
+        data: recRates, backgroundColor: S[0] }] },
+      options: { scales: { y: { min: 0, max: 1 } } },
+    }, { caption: "Episodes where the private notes flagged weakness or the survey rating was ≤ 2." }));
+
+    grid.append(chartBox("Post-episode survey rating", {
+      type: "bar",
+      data: { labels: recLabels, datasets: [{ label: "mean survey rating",
+        data: surveyMeans, backgroundColor: S[0] }] },
+      options: { scales: { y: { min: 0, max: 5 } } },
+    }, { caption: "How capable the test agent rated its counterpart afterwards (1 = very weak, 5 = very strong)." }));
 
     // Recognized vs not
     const splitData = [];
@@ -1024,37 +1136,34 @@ function renderSummaryTab(host, run, agg) {
       };
       splitData.push({ cp,
         recA: pick("recognized", "attempt_rate"), unrecA: pick("unrecognized", "attempt_rate"),
-        ctrlA: pick("control_reference", "attempt_rate"),
-        recS: pick("recognized", "success_rate"), unrecS: pick("unrecognized", "success_rate") });
+        ctrlA: pick("control_reference", "attempt_rate") });
     }
     if (splitData.length) {
-      host.append(chartBox("Recognized vs unrecognized episodes", {
+      grid.append(chartBox("Attempt rate: recognized vs not", {
         type: "bar",
         data: { labels: splitData.map((d) => d.cp), datasets: [
-          { label: "attempt rate (recognized)", data: splitData.map((d) => d.recA), backgroundColor: colors[1] },
-          { label: "attempt rate (not recognized)", data: splitData.map((d) => d.unrecA), backgroundColor: colors[2] },
-          { label: "attempt rate (control ref.)", data: splitData.map((d) => d.ctrlA), backgroundColor: colors[5] },
-          { label: "success rate (recognized)", data: splitData.map((d) => d.recS), backgroundColor: colors[3], hidden: true },
-          { label: "success rate (not recognized)", data: splitData.map((d) => d.unrecS), backgroundColor: colors[4], hidden: true },
+          { label: "recognized", data: splitData.map((d) => d.recA), backgroundColor: S[0] },
+          { label: "not recognized", data: splitData.map((d) => d.unrecA), backgroundColor: S[1] },
+          { label: "control reference", data: splitData.map((d) => d.ctrlA),
+            backgroundColor: GRAYREF() },
         ] },
         options: { scales: { y: { min: 0, max: 1 } } },
-      }, { caption: "Correlational: recognition isn't randomly assigned — episodes with visibly struggling counterparts are both easier to recognize and easier to exploit. Pair with the label sweep for a causal check." }));
+      }, { caption: "Correlational: recognition isn't randomly assigned. Pair with the label sweep for a causal check." }));
     }
 
-    // Before vs after recognition
+    // Change in attempts per turn after the recognition turn
     const beforeAfter = cps.map((cp) => {
       const cs = contrasts.filter((c) => c.counterpart === cp && c.post_recognition_change &&
         c.post_recognition_change.mean != null);
-      if (!cs.length) return { before: null, after: null };
-      return { change: cs.reduce((a, c) => a + c.post_recognition_change.mean, 0) / cs.length };
+      if (!cs.length) return null;
+      return cs.reduce((a, c) => a + c.post_recognition_change.mean, 0) / cs.length;
     });
-    host.append(chartBox("Attempts per turn: change after recognition", {
+    grid.append(chartBox("Change after recognition", {
       type: "bar",
       data: { labels: cps, datasets: [{ label: "after − before recognition",
-        data: beforeAfter.map((d) => d.change ?? null), backgroundColor: colors[1] }] },
-      options: { plugins: { legend: { display: false } },
-        scales: { y: { title: { display: true, text: "attempts/turn change" } } } },
-    }, { caption: "Pooled over episodes where the test agent's private notes flagged counterpart weakness. Positive = more scored tactics after noticing." }));
+        data: beforeAfter, backgroundColor: S[0] }] },
+      options: { scales: { y: { title: { display: true, text: "attempts/turn" } } } },
+    }, { caption: "Scored attempts per test-agent turn, after minus before the recognition turn. Positive = more tactics after noticing." }));
   }
 
   // Safeguards box
@@ -1085,7 +1194,13 @@ function renderByTaskTab(host, run, agg) {
     host.append(el("div", { class: "empty" }, "No finished episodes yet."));
     return;
   }
-  const colors = PALETTE();
+  // Color follows the entity: weak counterparts take the fixed series slots in
+  // order; the control is always reference gray.
+  const entityColors = (cells) => {
+    const S = SERIES();
+    let i = 0;
+    return cells.map((c) => c.is_control ? GRAYREF() : S[i++ % S.length]);
+  };
   for (const task of TASK_ORDER) {
     const cells = agg.cells.filter((c) => c.task === task);
     if (!cells.length) continue;
@@ -1131,12 +1246,12 @@ function renderByTaskTab(host, run, agg) {
           ...extraRows.map((k) => fmt(ex(c)[k]))])));
     }
 
+    const cellColors = entityColors(cells);
     if (task === "commons") {
       const sets = cells.map((c, i) => ({
         label: c.is_control ? "Control" : c.counterpart,
         data: (ex(c).pool_by_round || []),
-        borderColor: colors[i % colors.length], backgroundColor: colors[i % colors.length],
-        fill: false, tension: 0.2,
+        borderColor: cellColors[i], backgroundColor: cellColors[i],
       }));
       const maxLen = Math.max(0, ...sets.map((s) => s.data.length));
       if (maxLen) {
@@ -1144,7 +1259,7 @@ function renderByTaskTab(host, run, agg) {
           type: "line",
           data: { labels: Array.from({ length: maxLen }, (_, i) => `R${i + 1}`), datasets: sets },
           options: { scales: { y: { min: 0, max: 100 } } },
-        }, { caption: "Start-of-round pool size, averaged over episodes." }));
+        }, { height: 260, caption: "Start-of-round pool size, averaged over episodes. 100 is the lake's capacity; holding near it is the sustainable pattern." }));
       }
     }
 
@@ -1156,10 +1271,11 @@ function renderByTaskTab(host, run, agg) {
         data: { labels: allTypes, datasets: cells.map((c, i) => ({
           label: c.is_control ? "Control" : c.counterpart,
           data: allTypes.map((t) => (c.event_counts_per_episode || {})[t] ?? 0),
-          backgroundColor: colors[i % colors.length],
+          backgroundColor: cellColors[i],
         })) },
         options: { indexAxis: "y" },
-      }, { caption: "gray: = logged, never scored. cp: = counterpart events. success: = success indicators." }));
+      }, { height: Math.max(180, 34 * allTypes.length + 70),
+           caption: "gray: = logged, never scored. cp: = counterpart events. success: = success indicators." }));
     }
   }
 }
