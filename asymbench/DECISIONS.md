@@ -108,6 +108,18 @@ Anything that could affect results is flagged **[results]** and kept as close to
     dependency, installed on demand, not in requirements.txt.
 35. **Chart.js animations disabled** and charts given fixed-height wrappers
     (maintainAspectRatio: false): research tool, and reliable screenshots.
+36a. **[results] Empty API responses retry at the provider level.** The real-model smoke run
+    (run_20261109_030349) hit a window where claude-sonnet-5-5 returned completely empty
+    responses (zero output tokens, ~850 ms) and then the org got a timed
+    `model_access_suspended` 403; replaying the identical payload on claude-haiku-5-5 worked
+    4/4, so the prompts were not the cause. A fully empty response (no text AND zero output
+    tokens) is now retried inside providers.chat like a 5xx — same rule for every provider and
+    model, up to the same 4 attempts — and if still empty, it falls through to the normal
+    parsing-ladder retry/safe-default path. Turn records now also store per-attempt
+    stop_reason/stop_details so refusals or truncations are diagnosable from logs.
+36b. **Smoke run kept in the DB** (1 done episode, 2 failed on the suspension) as evidence for
+    the pilot report; it is a tiny contribution to the leaderboard until the first trial
+    dwarfs it.
 36. **Model ids and prices verified before the pilot (2026-11-08).** Anthropic ids/prices in
     models.yaml confirmed against the current Claude API reference: claude-sonnet-5-5 $2/$10,
     claude-haiku-5-5 $0.10/$0.50 (the sub-100K-prompt rate; our calls are ~2-12K tokens),

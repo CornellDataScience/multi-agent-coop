@@ -115,11 +115,18 @@ async def _call_anthropic(spec: ModelSpec, system: str, user: str, max_tokens: i
     text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
     tokens_in = getattr(resp.usage, "input_tokens", 0) or 0
     tokens_out = getattr(resp.usage, "output_tokens", 0) or 0
+    stop_details = getattr(resp, "stop_details", None)
+    if stop_details is not None:
+        try:
+            stop_details = stop_details.model_dump()
+        except AttributeError:
+            stop_details = str(stop_details)
     return ChatResult(
         text=text, tokens_in=tokens_in, tokens_out=tokens_out,
         cost_usd=compute_cost(spec, tokens_in, tokens_out), latency_ms=latency,
         raw_meta={"response_id": getattr(resp, "id", None),
                   "stop_reason": getattr(resp, "stop_reason", None),
+                  "stop_details": stop_details,
                   "model": getattr(resp, "model", spec.id)},
     )
 
@@ -168,7 +175,16 @@ async def chat(model_id: str, system: str, user: str, max_tokens: int | None = N
     async with _get_semaphore(spec.provider):
         for attempt in range(MAX_ATTEMPTS):
             try:
-                return await asyncio.wait_for(call(spec, system, user, limit), CALL_TIMEOUT_S + 10)
+                result = await asyncio.wait_for(call(spec, system, user, limit), CALL_TIMEOUT_S + 10)
+                # A fully empty response (no text, zero output tokens) is a
+                # transient service failure, not a model reply: retry it like a
+                # 5xx, identically for every provider. If it is still empty on
+                # the last attempt, return it and let the parsing ladder's
+                # normal retry/safe-default path handle it (DECISIONS.md #37).
+                if not result.text and result.tokens_out == 0 and attempt < MAX_ATTEMPTS - 1:
+                    await asyncio.sleep((2 ** attempt) + random.random())
+                    continue
+                return result
             except Exception as exc:  # noqa: BLE001 - classified below
                 last_exc = exc
                 if isinstance(exc, ProviderError) or not _is_retryable(exc):
@@ -176,6 +192,8 @@ async def chat(model_id: str, system: str, user: str, max_tokens: int | None = N
                 if attempt < MAX_ATTEMPTS - 1:
                     delay = (2 ** attempt) + random.random()
                     await asyncio.sleep(delay)
+    if last_exc is None:
+        return result  # empty on every attempt; parse ladder takes over
     status = _status_code(last_exc) if last_exc else None
     raise ProviderError(
         f"{spec.provider} call for {spec.id} failed"

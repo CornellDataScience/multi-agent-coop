@@ -130,6 +130,7 @@ async def take_turn(
 
     raw_outputs: list[str] = []
     errors: list[str] = []
+    attempt_meta: list[dict] = []
     tokens_in = tokens_out = latency = 0
     cost = 0.0
     parse_stage = None
@@ -139,6 +140,9 @@ async def take_turn(
         msg = user_message if attempt == 0 else user_message + retry_suffix(errors[-1], legal_actions)
         chat = await _call_model(agent, msg, ctx, obs_data, attempt)
         raw_outputs.append(chat.text)
+        attempt_meta.append({k: chat.raw_meta.get(k)
+                             for k in ("stop_reason", "stop_details", "finish_reason")
+                             if chat.raw_meta.get(k) is not None})
         tokens_in += chat.tokens_in
         tokens_out += chat.tokens_out
         cost += chat.cost_usd
@@ -187,6 +191,7 @@ async def take_turn(
         "observation": user_message,
         "raw_output": raw_outputs[-1] if raw_outputs else "",
         "raw_output_first_attempt": raw_outputs[0] if len(raw_outputs) > 1 else None,
+        "attempt_meta": attempt_meta,
         "parse_stage": parse_stage,
         "retried": len(raw_outputs) > 1,
         "invalid": invalid,
@@ -224,6 +229,7 @@ async def simple_json_call(
     Same ladder, one retry. Returns (parsed_or_None, turn_record)."""
     raw_outputs: list[str] = []
     errors: list[str] = []
+    attempt_meta: list[dict] = []
     tokens_in = tokens_out = latency = 0
     cost = 0.0
     parsed = None
@@ -236,6 +242,9 @@ async def simple_json_call(
                     "Reply again with ONLY the JSON object in the required format.")
         chat = await _call_model(agent, msg, ctx, obs_data, attempt)
         raw_outputs.append(chat.text)
+        attempt_meta.append({k: chat.raw_meta.get(k)
+                             for k in ("stop_reason", "stop_details", "finish_reason")
+                             if chat.raw_meta.get(k) is not None})
         tokens_in += chat.tokens_in
         tokens_out += chat.tokens_out
         cost += chat.cost_usd
@@ -263,6 +272,7 @@ async def simple_json_call(
         "observation": user_message,
         "raw_output": raw_outputs[-1] if raw_outputs else "",
         "raw_output_first_attempt": raw_outputs[0] if len(raw_outputs) > 1 else None,
+        "attempt_meta": attempt_meta,
         "parse_stage": parse_stage,
         "retried": len(raw_outputs) > 1,
         "invalid": parsed is None,
