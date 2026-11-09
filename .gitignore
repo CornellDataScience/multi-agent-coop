@@ -20,3 +20,6 @@ results/
 # Asymmetry Bench runtime artifacts (created by `python -m asymbench`)
 runs/
 data/
+
+# Personal Claude Code permission overrides
+.claude/settings.local.json
