@@ -88,6 +88,33 @@ other changes.
 - **Reports:** `PILOT_REPORT.md` and `RESULTS_FIRST_TRIAL.md` in this folder
   (written in Phase 3), with charts under `reports/`.
 
+## Public dashboard
+
+The shareable results site lives at **https://miwi343.github.io/asymmetry-bench/**
+(static GitHub Pages; the same site is staged on this repo's `gh-pages` branch and
+serves at `https://cornelldatascience.github.io/multi-agent-coop/` once a repo
+admin enables Pages: Settings → Pages → Deploy from branch → `gh-pages`).
+
+- **Page source:** `asymbench/dashboard/index.html`. Data layer: it polls
+  `data.json` (same origin) every 60 s and the repo's GitHub issues every 5 min.
+- **Sync results** (also works repeatedly *during* a live run — that's what keeps
+  the public progress/cost close to live):
+  ```bash
+  tools/deploy_dashboard.sh <run_id> [<run_id> ...]
+  ```
+  It exports chart-ready JSON (`tools/export_dashboard_data.py`), then pushes
+  `index.html` + `data.json` to both Pages targets from a temp worktree — it
+  never touches your branch. Episode-level transcripts stay local; only
+  aggregates, cost splits and curated exemplar quotes are published.
+- **Test requests:** teammates use the site's "Request a test" form, which opens
+  a prefilled GitHub issue titled `[Test request] …` containing a runner config
+  JSON block. Pick them up with `gh issue list --search "[Test request] in:title"`,
+  run locally, then label the issue `running`, and close it (optionally label
+  `declined`) when resolved — the site reflects issue state as status chips.
+- **Per-provider cost** (Claude API vs OpenRouter) is tracked per episode
+  (`cost_anthropic` / `cost_openrouter` columns), summed live into each run's
+  `progress.cost_by_provider`, and shown in both the local UI and the public site.
+
 ## Tests
 
 ```bash

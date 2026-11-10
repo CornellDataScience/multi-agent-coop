@@ -254,6 +254,7 @@ def _progress(run_id: str) -> dict:
     return {"done": sum(1 for e in eps if e["status"] == "done"),
             "total": len(eps),
             "failed": sum(1 for e in eps if e["status"] == "failed"),
+            "cost_by_provider": db.run_cost_split(run_id),
             "heartbeat_at": _now()}
 
 
@@ -331,7 +332,10 @@ async def execute_run(run_id: str) -> None:
                                "judge_model": record["judge_model"], "history": []},
                         judge_failed=record["judge_failed"], excluded=record["excluded"],
                         tokens_in=record["tokens_in"], tokens_out=record["tokens_out"],
-                        cost_usd=record["cost_usd"], error=None,
+                        cost_usd=record["cost_usd"],
+                        cost_anthropic=record["cost_by_provider"].get("anthropic", 0.0),
+                        cost_openrouter=record["cost_by_provider"].get("openrouter", 0.0),
+                        error=None,
                         started_at=record["started_at"], finished_at=record["finished_at"])
                     db.add_run_cost(run_id, record["cost_usd"])
                     db.update_run(run_id, progress=_progress(run_id))

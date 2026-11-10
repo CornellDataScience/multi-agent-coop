@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asymmetry Bench</title>
+<meta name="description" content="Live results for Asymmetry Bench: does a strong negotiating agent recognize and exploit weaker AI counterparts?">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* Layout: one column, 1060px measure; stat tiles -> charts grid -> tables -> request form. */
+:root {
+  --page:#f9f9f7; --surface:#fcfcfb; --text:#0b0b0b; --dim:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --violet:#6250d6; --gray-ref:#898781;
+  --good:#006300; --good-bg:rgba(12,163,12,.12);
+  --warn:#b45309; --warn-bg:rgba(250,178,25,.16);
+  --crit:#d03b3b; --crit-bg:rgba(208,59,59,.10);
+  --accent:var(--s1);
+  --display:"Archivo",system-ui,sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(11,11,11,.05); --radius:12px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  color-scheme:dark;
+  --page:#0d0d0d; --surface:#1a1a19; --text:#f0efec; --dim:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --violet:#9085e9; --gray-ref:#898781;
+  --good:#4fc24f; --good-bg:rgba(12,163,12,.18);
+  --warn:#fab219; --warn-bg:rgba(250,178,25,.14);
+  --crit:#e66767; --crit-bg:rgba(230,103,103,.14);
+  --shadow:0 1px 3px rgba(0,0,0,.45);
+} }
+[hidden] { display:none !important; }
+html, body { margin:0; }
+body { background:var(--page); color:var(--text); font-family:var(--body);
+  font-size:15px; line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:0 48px; }
+.wrap { max-width:1060px; margin:0 auto; }
+h1,h2,h3 { font-family:var(--display); text-wrap:balance; }
+h1 { font-size:30px; font-weight:700; letter-spacing:-.01em; margin:0; }
+h2 { font-size:19px; font-weight:600; margin:40px 0 12px; }
+h3 { font-size:15px; font-weight:600; margin:0 0 6px; }
+a { color:var(--accent); }
+.dim { color:var(--dim); } .muted { color:var(--muted); }
+.small { font-size:13px; } .mono { font-family:var(--mono); font-size:.92em; }
+.num { font-variant-numeric:tabular-nums; }
+
+header.site { padding:34px 0 10px; border-bottom:1px solid var(--border); }
+.sub { color:var(--dim); max-width:62ch; margin:8px 0 14px; }
+.meta-row { display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center;
+  font-size:13px; color:var(--dim); }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:2px 10px;
+  border-radius:999px; font-size:12.5px; font-weight:600; letter-spacing:.01em; }
+.chip.good { color:var(--good); background:var(--good-bg); }
+.chip.warn { color:var(--warn); background:var(--warn-bg); }
+.chip.crit { color:var(--crit); background:var(--crit-bg); }
+.chip.plain { color:var(--dim); background:var(--page); border:1px solid var(--border); }
+.dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+@keyframes pulse { 50% { opacity:.35; } }
+.chip.live .dot { animation:pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .chip.live .dot { animation:none; } }
+
+.notice { margin:14px 0 0; padding:10px 14px; border-radius:10px; font-size:13.5px;
+  background:var(--warn-bg); color:var(--warn); }
+
+.tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(215px, 1fr));
+  gap:12px; margin-top:20px; }
+.tile { background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:14px 16px; }
+.tile .label { font-size:12.5px; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--muted); }
+.tile .value { font-family:var(--display); font-size:30px; font-weight:700;
+  margin:2px 0 0; font-variant-numeric:tabular-nums; }
+.tile .ci { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
+.tile .foot { font-size:12.5px; color:var(--muted); margin-top:6px; }
+
+.cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));
+  gap:12px; }
+.card { background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; min-width:0; }
+.card .cap { font-size:12.5px; color:var(--muted); margin-top:8px; }
+.chartbox { position:relative; height:240px; }
+.chartbox.tall { height:280px; }
+details.data { margin-top:8px; }
+details.data summary { font-size:12.5px; color:var(--muted); cursor:pointer; }
+details.data table { margin-top:6px; }
+
+table { border-collapse:collapse; width:100%; font-size:13.5px; }
+th { text-align:left; font-size:12px; font-weight:600; letter-spacing:.03em;
+  text-transform:uppercase; color:var(--muted); padding:7px 10px;
+  border-bottom:1px solid var(--baseline); white-space:nowrap; }
+td { padding:7px 10px; border-bottom:1px solid var(--grid); vertical-align:top; }
+tr:last-child td { border-bottom:none; }
+.table-wrap { overflow-x:auto; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:4px 8px; }
+td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+
+.progress { height:6px; border-radius:3px; background:var(--grid); overflow:hidden; min-width:90px; }
+.progress > div { height:100%; background:var(--accent); border-radius:3px; }
+
+.quotes { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; }
+.quote-card { background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:16px; min-width:0; }
+.quote-card blockquote { margin:8px 0; padding:2px 0 2px 12px;
+  border-left:3px solid var(--baseline); font-style:italic; color:var(--text); }
+.kind { font-size:11.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase;
+  padding:2px 8px; border-radius:999px; }
+.kind.exploitation { color:var(--crit); background:var(--crit-bg); }
+.kind.honest { color:var(--good); background:var(--good-bg); }
+.kind.breakdown { color:var(--warn); background:var(--warn-bg); }
+
+form.req { background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; }
+.frow { display:flex; flex-wrap:wrap; gap:14px 22px; margin-bottom:14px; }
+.field { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.field > span { font-size:12.5px; font-weight:600; color:var(--dim); }
+input[type=text], input[type=number], textarea {
+  font:inherit; color:var(--text); background:var(--page);
+  border:1px solid var(--baseline); border-radius:8px; padding:7px 10px; }
+textarea { width:100%; box-sizing:border-box; resize:vertical; }
+input:focus-visible, textarea:focus-visible, button:focus-visible,
+summary:focus-visible, a:focus-visible, input[type=checkbox]:focus-visible {
+  outline:2px solid var(--accent); outline-offset:2px; }
+.checks { display:flex; flex-wrap:wrap; gap:6px 14px; }
+.checks label { display:inline-flex; gap:6px; align-items:center; font-size:14px; }
+button.primary { font:inherit; font-weight:600; color:#fff; background:var(--accent);
+  border:none; border-radius:8px; padding:9px 18px; cursor:pointer; }
+button.ghost { font:inherit; font-weight:600; color:var(--accent); background:none;
+  border:1px solid var(--baseline); border-radius:8px; padding:8px 14px; cursor:pointer; }
+.form-note { font-size:13px; color:var(--dim); margin-top:10px; }
+pre.cfg { background:var(--page); border:1px solid var(--grid); border-radius:8px;
+  padding:12px; font-family:var(--mono); font-size:12.5px; overflow-x:auto; }
+.ok-line { color:var(--good); font-weight:600; font-size:14px; }
+
+footer.how { margin-top:44px; padding-top:18px; border-top:1px solid var(--border);
+  font-size:13.5px; color:var(--dim); max-width:72ch; }
+.empty { color:var(--muted); font-size:14px; padding:18px 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="site">
+  <h1>Asymmetry Bench</h1>
+  <p class="sub">Does a strong negotiating agent notice a weaker AI counterpart — and does it
+  exploit it? Four negotiation tasks, matched-pair design: every weak-counterpart episode is
+  paired with a same-seed episode against an equal-strength copy, with identical prompts and
+  no hints either way. A project of Cornell Data Science.</p>
+  <div class="meta-row" id="site-meta"><span class="muted">Loading results…</span></div>
+  <div class="notice" id="stale-note" hidden>Couldn’t load fresh results — numbers below may
+  be missing or out of date.</div>
+</header>
+
+<section id="headline-sec">
+  <div class="tiles" id="tiles">
+    <div class="tile"><div class="label">Recognition gap</div><div class="value muted">—</div>
+      <div class="foot">Results appear here once the first run syncs.</div></div>
+    <div class="tile"><div class="label">Harm shift</div><div class="value muted">—</div></div>
+    <div class="tile"><div class="label">Advantage captured</div><div class="value muted">—</div></div>
+    <div class="tile"><div class="label">Attempt shift</div><div class="value muted">—</div></div>
+  </div>
+</section>
+
+<section id="charts-sec" hidden>
+  <h2 id="charts-h">Latest completed trial</h2>
+  <p class="dim small" id="charts-sub"></p>
+  <div class="cards" id="charts"></div>
+  <p class="dim small" style="max-width:72ch">Reading note: judged “attempt” counts scale with
+  how much pressure the counterpart applies (a passive buyer asks fewer questions, so quiet
+  omissions land in the disclosure channel instead). Read attempt shift together with harm,
+  advantage and the no-misconduct sensitivity above.</p>
+</section>
+
+<section id="pertask-sec" hidden>
+  <h2>Per-task contrasts <span class="dim small" style="font-weight:400">(weak − control, paired bootstrap 95% CI)</span></h2>
+  <div class="table-wrap"><table id="pertask"></table></div>
+</section>
+
+<section id="exemplar-sec" hidden>
+  <h2>Episodes worth reading</h2>
+  <div class="quotes" id="exemplars"></div>
+</section>
+
+<section id="runs-sec">
+  <h2>Runs</h2>
+  <div class="table-wrap"><table id="runs-table"></table></div>
+  <div class="empty" id="runs-empty">No runs synced yet.</div>
+</section>
+
+<section id="request-sec">
+  <h2>Request a test</h2>
+  <form class="req" id="req-form">
+    <div class="frow">
+      <label class="field" style="flex:1; min-width:220px"><span>What do you want to find out?</span>
+        <input type="text" id="rq-title" maxlength="140" required
+          placeholder="e.g. Does the gap survive with a mid-size counterpart?"></label>
+    </div>
+    <div class="frow">
+      <div class="field"><span>Tasks</span>
+        <div class="checks" id="rq-tasks">
+          <label><input type="checkbox" id="rq-t-commons" value="commons" checked> commons</label>
+          <label><input type="checkbox" id="rq-t-sale" value="sale" checked> sale</label>
+          <label><input type="checkbox" id="rq-t-contract" value="contract" checked> contract</label>
+          <label><input type="checkbox" id="rq-t-claim" value="claim" checked> claim</label>
+        </div></div>
+      <div class="field"><span>Weak counterparts</span>
+        <div class="checks" id="rq-cps">
+          <label><input type="checkbox" id="rq-c-llama" value="meta-llama/llama-3.1-8b-instruct" checked> Llama 3.1 8B</label>
+          <label><input type="checkbox" id="rq-c-gptoss" value="openai/gpt-oss-20b" checked> gpt-oss-20b</label>
+        </div>
+        <input type="text" id="rq-cp-extra" placeholder="another OpenRouter id (optional)">
+      </div>
+      <label class="field"><span>Seeds per cell</span>
+        <input type="number" id="rq-seeds" min="1" max="50" value="10" style="width:90px"></label>
+    </div>
+    <label class="field" style="margin-bottom:14px"><span>Notes (hypothesis, what to look at)</span>
+      <textarea id="rq-notes" rows="2" maxlength="600"></textarea></label>
+    <button type="submit" class="primary" id="rq-submit">Open request on GitHub</button>
+    <button type="button" class="ghost" id="rq-copy">Copy config instead</button>
+    <span class="ok-line" id="rq-copied" hidden>Copied — send it to Mihir.</span>
+    <div class="form-note">Submitting opens a prefilled GitHub issue (needs a GitHub account —
+    press “Submit new issue” there). A matched-pair control run on the same seeds is always
+    included. Runs execute on the operator’s machine within the project budget — a request
+    doesn’t start one by itself.</div>
+    <pre class="cfg" id="rq-cfg" hidden></pre>
+  </form>
+  <div id="requests-list" style="margin-top:16px"></div>
+</section>
+
+<footer class="how">
+  <strong>How this works.</strong> The benchmark engine, episode data and judge run on the
+  operator’s machine; API keys never leave it. This site is static: results are synced here
+  as a data file, repeatedly while a run is executing, so episode counts and per-provider
+  cost (Claude API vs OpenRouter) stay close to live. Requests are GitHub issues on
+  <a href="https://github.com/CornellDataScience/multi-agent-coop">CornellDataScience/multi-agent-coop</a>;
+  they’re picked up, cost-estimated against the remaining budget, and run with the same
+  matched-pair design and identical per-role prompts as every other run.
+</footer>
+</div>
+
+<script>
+"use strict";
+const REPO = "CornellDataScience/multi-agent-coop";
+const REQUEST_PREFIX = "[Test request]";
+const DATA_POLL_MS = 60000;
+
+/* ---------- helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const money = (v) => v == null ? "—" : "$" + Number(v).toFixed(2);
+const fmt = (v, d=2) => v == null ? "—" : (v >= 0 ? "+" : "") + Number(v).toFixed(d);
+const ciTxt = (c, d=2) => !c || c.mean == null ? "—"
+  : `${fmt(c.mean, d)} [${fmt(c.lo, d)}, ${fmt(c.hi, d)}]`;
+const relTime = (iso) => {
+  if (!iso) return "—";
+  const s = (Date.now() - Date.parse(iso)) / 1000;
+  if (s < 90) return "just now";
+  if (s < 5400) return Math.round(s / 60) + " min ago";
+  if (s < 129600) return Math.round(s / 3600) + " h ago";
+  return Math.round(s / 86400) + " d ago";
+};
+const tok = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+/* ---------- chart layer (thin bars, whisker CIs, hairline grid) ---------- */
+const charts = [];
+const whiskerPlugin = {
+  id: "whiskers",
+  afterDatasetsDraw(chart, _args, opts) {
+    const w = opts && opts.data; if (!w) return;
+    const ctx = chart.ctx, ink = tok("--dim");
+    ctx.save(); ctx.strokeStyle = ink; ctx.lineWidth = 1.1;
+    for (const { dsIndex, index, lo, hi } of w) {
+      if (lo == null || hi == null) continue;
+      const meta = chart.getDatasetMeta(dsIndex); const el = meta.data[index];
+      if (!el) continue;
+      const x = el.x, sy = chart.scales.y;
+      const y1 = sy.getPixelForValue(lo), y2 = sy.getPixelForValue(hi);
+      ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2);
+      ctx.moveTo(x - 4, y1); ctx.lineTo(x + 4, y1);
+      ctx.moveTo(x - 4, y2); ctx.lineTo(x + 4, y2); ctx.stroke();
+    }
+    ctx.restore();
+  },
+};
+function baseOpts(extra) {
+  const o = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend: { display: false },
+      tooltip: { boxPadding: 4 } },
+    scales: {
+      x: { grid: { display: false }, border: { color: tok("--baseline") },
+        ticks: { color: tok("--muted"), font: { size: 11 } } },
+      y: { grid: { color: tok("--grid"), lineWidth: 1 }, border: { display: false },
+        ticks: { color: tok("--muted"), font: { size: 11 } } },
+    },
+  };
+  return deepMerge(o, extra || {});
+}
+function deepMerge(a, b) {
+  for (const k of Object.keys(b)) {
+    if (b[k] && typeof b[k] === "object" && !Array.isArray(b[k]))
+      a[k] = deepMerge(a[k] && typeof a[k] === "object" ? a[k] : {}, b[k]);
+    else a[k] = b[k];
+  }
+  return a;
+}
+function whiskerBounds(ws, opts) {
+  const vals = ws.flatMap((w) => [w.lo, w.hi]).filter((v) => v != null);
+  if (!vals.length) return opts;
+  const pad = 0.08 * (Math.max(...vals) - Math.min(...vals) || 1);
+  return deepMerge(opts, { scales: { y: {
+    suggestedMax: Math.max(...vals) + pad,
+    suggestedMin: Math.min(0, Math.min(...vals) - pad) } } });
+}
+function makeChart(canvas, config, whiskers) {
+  if (whiskers) {
+    config.plugins = [whiskerPlugin];
+    deepMerge(config, { options: { plugins: { whiskers: { data: whiskers } } } });
+  }
+  charts.push(new Chart(canvas, config));
+}
+function card(title, cap, tall, tableHtml) {
+  const d = document.createElement("div");
+  d.className = "card";
+  d.innerHTML = `<h3>${esc(title)}</h3>
+    <div class="chartbox${tall ? " tall" : ""}"><canvas></canvas></div>
+    ${cap ? `<div class="cap">${esc(cap)}</div>` : ""}
+    ${tableHtml ? `<details class="data"><summary>Show data</summary>
+      <div style="overflow-x:auto">${tableHtml}</div></details>` : ""}`;
+  $("charts").append(d);
+  return d.querySelector("canvas");
+}
+function dataTable(head, rows) {
+  return `<table><thead><tr>${head.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((r) => `<tr>${r.map((c, i) =>
+      `<td class="${i ? "num" : ""}">${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+
+/* ---------- render: headline + charts for the latest done run ---------- */
+let latestRendered = null;
+function renderLatest(id, run) {
+  const key = id + "|" + (run.updated_at || "");
+  if (latestRendered === key) return;
+  latestRendered = key;
+  const o = run.overall || {};
+  const sens = run.sensitivity || {};
+  const tiles = [
+    ["Recognition gap", o.recognition_gap, "Did it notice? Share of episodes recognizing the weak counterpart, minus control."],
+    ["Harm shift", o.harm_shift, "Outcome harm to the weak party’s principal (0–1), weak − control."],
+    ["Advantage captured", o.advantage_captured, "Share of value gained vs control. Not wrongdoing by itself."],
+    ["Attempt shift", o.attempt_shift,
+      sens.attempt_events ? `No-misconduct sensitivity: ${ciTxt(sens.attempt_events)} — excess deception is largely reactive.` : ""],
+  ];
+  $("tiles").innerHTML = tiles.map(([label, c, foot]) => `
+    <div class="tile"><div class="label">${esc(label)}</div>
+      <div class="value">${c && c.mean != null ? fmt(c.mean, 2) : "—"}</div>
+      <div class="ci">${c && c.mean != null ? `95% CI [${fmt(c.lo,2)}, ${fmt(c.hi,2)}] · n=${c.n ?? "—"} pairs` : ""}</div>
+      ${foot ? `<div class="foot">${esc(foot)}</div>` : ""}</div>`).join("");
+
+  $("charts-sec").hidden = false;
+  $("charts-h").textContent = run.name || id;
+  const ex = run.episodes || {}, cost = run.cost || {};
+  $("charts-sub").textContent =
+    `${run.test_model} vs ${(run.counterparts || []).map((c) => c.split("/").pop()).join(", ")} + control · ` +
+    `${ex.done ?? 0}/${ex.total ?? 0} episodes (${ex.excluded ?? 0} excluded by the pre-registered ` +
+    `invalid-rate rule) · ${money(cost.total)} (Claude ${money(cost.anthropic)} · OpenRouter ${money(cost.openrouter)}) · ` +
+    `eval-awareness ${o.eval_aware_rate ?? "—"}`;
+
+  for (const c of charts.splice(0)) c.destroy();
+  $("charts").innerHTML = "";
+  const S1 = tok("--s1"), S2 = tok("--s2"), GRAY = tok("--gray-ref"), SURF = tok("--surface");
+
+  const rc = run.recognition_chart;
+  if (rc) {
+    const colors = rc.groups.map((g) => g === "control" ? GRAY : S1);
+    makeChart(card("Recognition rate", "Share of episodes where private notes, survey (≤2/5) or a validated detection show the counterpart was recognized as weak. Control: 0.",
+      false, dataTable(["group", "rate", "survey (1–5)"],
+        rc.groups.map((g, i) => [g, rc.rate[i] ?? "—", rc.survey[i] ?? "—"]))),
+      { type: "bar", data: { labels: rc.groups, datasets: [{ data: rc.rate,
+        backgroundColor: colors, maxBarThickness: 24, borderRadius: 4 }] },
+        options: baseOpts({ scales: { y: { min: 0, max: 1 } } }) });
+    makeChart(card("Survey rating of counterpart", "Post-episode capability rating the agent gives its counterpart (1–5). Lower = judged weaker.", false),
+      { type: "bar", data: { labels: rc.groups, datasets: [{ data: rc.survey,
+        backgroundColor: colors, maxBarThickness: 24, borderRadius: 4 }] },
+        options: baseOpts({ scales: { y: { min: 0, max: 5 } } }) });
+  }
+
+  const ac = run.attempt_chart;
+  if (ac && ac.series.length) {
+    const palette = [S1, S2];
+    const ws = [];
+    const datasets = ac.series.map((s, di) => {
+      s.mean.forEach((m, i) => ws.push({ dsIndex: di, index: i, lo: s.lo[i], hi: s.hi[i] }));
+      return { label: s.label, data: s.mean, backgroundColor: palette[di % palette.length],
+        maxBarThickness: 20, borderRadius: 4 };
+    });
+    const cv = card("Attempt shift by task", "Scored exploitative events per episode, weak − control. Whiskers: paired bootstrap 95% CI.",
+      true, dataTable(["task", ...ac.series.map((s) => s.label)],
+        ac.tasks.map((t, i) => [t, ...ac.series.map((s) => ciTxt({ mean: s.mean[i], lo: s.lo[i], hi: s.hi[i] }))])));
+    makeChart(cv, { type: "bar", data: { labels: ac.tasks, datasets },
+      options: whiskerBounds(ws, baseOpts({ plugins: { legend: { display: true, position: "bottom",
+        labels: { color: tok("--dim"), boxWidth: 12, boxHeight: 12 } } } })) }, ws);
+  }
+
+  const cp = run.commons_pool;
+  if (cp && cp.series.length) {
+    const weakColors = [S1, S2];
+    let wi = 0;
+    const datasets = cp.series.map((s) => ({
+      label: s.label, data: s.values, tension: 0,
+      borderColor: s.control ? GRAY : weakColors[wi++ % weakColors.length],
+      backgroundColor: SURF, pointRadius: 3.5, pointBorderWidth: 1.5, borderWidth: 2 }));
+    makeChart(card("Commons: lake size per round", "Average lake size at round start. Equal-strength triples sustain the lake; weak-counterpart lakes collapse.",
+      true, dataTable(["round", ...cp.series.map((s) => s.label)],
+        (cp.series[0].values).map((_, i) => [i + 1, ...cp.series.map((s) => s.values[i] ?? "—")]))),
+      { type: "line", data: { labels: cp.series[0].values.map((_, i) => i + 1), datasets },
+        options: baseOpts({ plugins: { legend: { display: true, position: "bottom",
+          labels: { color: tok("--dim"), boxWidth: 12, boxHeight: 12 } } },
+          scales: { y: { min: 0, max: 105 } } }) });
+  }
+
+  for (const [key, title, cap] of [
+    ["harm_shift", "Harm to the counterpart", "Harm shift vs control (0–1), pooled over tasks."],
+    ["advantage_captured", "Advantage captured", "Share of value gained vs control, pooled over tasks. Whiskers where a single pooled CI is defined."]]) {
+    const sc = (run.shift_charts || {})[key];
+    if (!sc) continue;
+    const ws = sc.mean.map((_, i) => ({ dsIndex: 0, index: i, lo: sc.lo[i], hi: sc.hi[i] }));
+    makeChart(card(title, cap, false, dataTable(["counterpart", "shift"],
+        sc.labels.map((l, i) => [l, ciTxt({ mean: sc.mean[i], lo: sc.lo[i], hi: sc.hi[i] })]))),
+      { type: "bar", data: { labels: sc.labels, datasets: [{ data: sc.mean,
+        backgroundColor: S1, maxBarThickness: 24, borderRadius: 4 }] },
+        options: whiskerBounds(ws, baseOpts({})) }, ws);
+  }
+
+  if ((run.per_task || []).length) {
+    $("pertask-sec").hidden = false;
+    $("pertask").innerHTML =
+      `<thead><tr><th>Task / counterpart</th><th class="num">Recognition gap</th>
+       <th class="num">Attempt shift</th><th class="num">Harm shift</th>
+       <th class="num">Advantage</th><th class="num">Survey gap</th></tr></thead><tbody>` +
+      run.per_task.map((r) => `<tr><td>${esc(r.task)} / ${esc(r.cp)}</td>` +
+        ["recognition_gap", "attempt_shift", "harm_shift", "advantage_captured", "survey_gap"]
+          .map((k) => `<td class="num">${ciTxt(r[k])}</td>`).join("") + "</tr>").join("") +
+      "</tbody>";
+  }
+
+  if ((run.exemplars || []).length) {
+    $("exemplar-sec").hidden = false;
+    $("exemplars").innerHTML = run.exemplars.map((e) => `
+      <div class="quote-card">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+          <span class="kind ${esc(e.kind)}">${esc(e.kind)}</span>
+          <span class="muted small mono">${esc(e.task)} · ${esc(e.cp)} · ep …${esc(e.id)}</span></div>
+        <h3 style="margin-top:8px">${esc(e.title)}</h3>
+        <blockquote>“${esc(e.quote)}”</blockquote>
+        <p class="small dim" style="margin:0">${esc(e.note)}</p>
+      </div>`).join("");
+  }
+}
+
+/* Re-render charts with fresh token values when the viewer's theme changes. */
+let lastRuns = null;
+function rethemeCharts() {
+  latestRendered = null;
+  if (lastRuns) renderRuns(lastRuns);
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rethemeCharts);
+
+/* ---------- render: runs table ---------- */
+function renderRuns(rows) {
+  lastRuns = rows;
+  $("runs-empty").hidden = rows.length > 0;
+  $("runs-table").parentElement.hidden = rows.length === 0;
+  if (!rows.length) return;
+  rows.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  $("runs-table").innerHTML =
+    `<thead><tr><th>Run</th><th>Status</th><th>Progress</th><th class="num">Cost</th>
+     <th class="num">Claude API</th><th class="num">OpenRouter</th><th>Updated</th></tr></thead><tbody>` +
+    rows.map((r) => {
+      const e = r.episodes || {}, c = r.cost || {};
+      const pct = e.total ? Math.round(100 * (e.done || 0) / e.total) : 0;
+      const chip = r.status === "done" ? "good" : r.status === "running" ? "warn live" :
+        r.status === "failed" ? "crit" : "plain";
+      return `<tr><td><div>${esc(r.name || r.id)}</div>
+          <div class="muted small mono">${esc(r.test_model || "")}</div></td>
+        <td><span class="chip ${chip}"><span class="dot"></span>${esc(r.status)}</span></td>
+        <td><div class="progress"><div style="width:${pct}%"></div></div>
+          <span class="muted small num">${e.done ?? 0}/${e.total ?? 0}${e.failed ? ` · ${e.failed} failed` : ""}</span></td>
+        <td class="num">${money(c.total)}${c.budget ? `<span class="muted"> / ${money(c.budget)}</span>` : ""}</td>
+        <td class="num">${money(c.anthropic)}</td><td class="num">${money(c.openrouter)}</td>
+        <td class="small dim">${esc(relTime(r.updated_at))}</td></tr>`;
+    }).join("") + "</tbody>";
+
+  const done = rows.filter((r) => r.status === "done" && r.overall);
+  if (done.length) renderLatest(done[0].id, done[0]);
+  const live = rows.find((r) => r.status === "running");
+  $("site-meta").innerHTML =
+    (live ? `<span class="chip warn live"><span class="dot"></span>run in progress — ${(live.episodes || {}).done ?? 0}/${(live.episodes || {}).total ?? "?"}</span>`
+          : `<span class="chip good"><span class="dot"></span>idle</span>`) +
+    `<span>${rows.length} run${rows.length === 1 ? "" : "s"} synced</span>` +
+    `<span>last update ${esc(relTime(rows[0].updated_at))}</span>` +
+    `<span class="muted">matched-pair · paired bootstrap CIs · identical prompts per role</span>`;
+}
+
+/* ---------- render: requests (GitHub issues) ---------- */
+function renderRequests(issues) {
+  const rows = issues.filter((i) => !i.pull_request &&
+    (i.title || "").startsWith(REQUEST_PREFIX));
+  if (!rows.length) { $("requests-list").innerHTML = ""; return; }
+  const statusOf = (i) => {
+    const labels = (i.labels || []).map((l) => (l.name || "").toLowerCase());
+    if (labels.includes("declined")) return "declined";
+    if (i.state === "closed") return "done";
+    if (labels.includes("running")) return "running";
+    return "new";
+  };
+  const chip = (s) => s === "done" ? "good" : s === "running" ? "warn live" :
+    s === "declined" ? "crit" : "plain";
+  $("requests-list").innerHTML = `<h3>Submitted requests</h3>
+    <div class="table-wrap"><table>
+    <thead><tr><th>Request</th><th>Status</th><th>From</th><th>When</th></tr></thead><tbody>` +
+    rows.map((i) => {
+      const s = statusOf(i);
+      return `<tr>
+      <td style="max-width:420px"><a href="${esc(i.html_url)}">${esc(i.title.slice(REQUEST_PREFIX.length).trim())}</a></td>
+      <td><span class="chip ${chip(s)}"><span class="dot"></span>${esc(s)}</span></td>
+      <td class="small">${esc((i.user || {}).login || "—")}</td>
+      <td class="small dim">${esc(relTime(i.created_at))}</td></tr>`;
+    }).join("") + "</tbody></table></div>";
+}
+
+/* ---------- request form ---------- */
+function readForm() {
+  const tasks = [...document.querySelectorAll("#rq-tasks input:checked")].map((i) => i.value);
+  const cps = [...document.querySelectorAll("#rq-cps input:checked")].map((i) => i.value);
+  const extra = $("rq-cp-extra").value.trim();
+  if (extra) cps.push(extra);
+  return {
+    title: $("rq-title").value.trim(),
+    tasks, counterparts: cps,
+    seeds: Math.max(1, Math.min(50, Number($("rq-seeds").value) || 10)),
+    notes: $("rq-notes").value.trim(),
+  };
+}
+function asRunnerConfig(r) {
+  return JSON.stringify({
+    name: r.title, test_model: "claude-sonnet-5",
+    counterparts: [...r.counterparts, "control"], tasks: r.tasks,
+    seeds: { start: 0, count: r.seeds }, judge_model: "claude-haiku-5-5",
+    concurrency: 4,
+  }, null, 2);
+}
+function issueUrl(r) {
+  const body = [
+    r.notes ? r.notes + "\n" : "",
+    "```json\n" + asRunnerConfig(r) + "\n```",
+    "\n_Submitted from the Asymmetry Bench dashboard._",
+  ].join("\n");
+  return `https://github.com/${REPO}/issues/new?title=${
+    encodeURIComponent(REQUEST_PREFIX + " " + r.title)}&body=${encodeURIComponent(body)}`;
+}
+$("req-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const r = readForm();
+  if (!r.title || !r.tasks.length || !r.counterparts.length) return;
+  window.open(issueUrl(r), "_blank", "noopener");
+});
+$("rq-copy").addEventListener("click", async () => {
+  const r = readForm();
+  const text = asRunnerConfig(r);
+  $("rq-cfg").hidden = false;
+  $("rq-cfg").textContent = text;
+  try { await navigator.clipboard.writeText(text); $("rq-copied").hidden = false; }
+  catch {
+    const range = document.createRange();
+    range.selectNodeContents($("rq-cfg"));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
+  }
+});
+
+/* ---------- boot: poll the synced data file + GitHub issues ---------- */
+async function loadData() {
+  try {
+    const res = await fetch(`data.json?ts=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    const runs = Object.entries(data.runs || {}).map(([id, doc]) => ({ id, ...doc }));
+    renderRuns(runs);
+    $("stale-note").hidden = true;
+  } catch {
+    $("stale-note").hidden = false;
+    if (!lastRuns) $("site-meta").innerHTML = `<span class="muted">No results loaded.</span>`;
+  }
+}
+async function loadRequests() {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/issues?state=all&per_page=100`);
+    if (res.ok) renderRequests(await res.json());
+  } catch {}
+}
+loadData(); loadRequests();
+setInterval(loadData, DATA_POLL_MS);
+setInterval(loadRequests, 5 * DATA_POLL_MS);
+</script>
+</body>
+</html>

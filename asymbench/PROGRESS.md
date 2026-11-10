@@ -130,3 +130,27 @@ trial, results report). Both API keys are present in .env.
   `0009`, disclosure `0099`).
 
 **Benchmark complete.** All three phases done; 236 offline tests passing.
+
+## Post-trial: public dashboard + cost split (2026-11-10)
+
+- **Per-provider cost tracking:** episodes now record `cost_anthropic` /
+  `cost_openrouter` (exact split: every agent/survey call is a turn with its
+  model; judge cost added to the judge's provider). Live per-run totals in
+  `progress.cost_by_provider`; shown on the local Runs list and run header.
+  Backfilled the three real runs (`tools/backfill_provider_costs.py`).
+  Trial split: Claude $15.92 / OpenRouter $0.31. Tests: 238 passing.
+- **Public results site** (team-shareable link, per the team lead's request —
+  a standalone website, not a Claude artifact):
+  https://miwi343.github.io/asymmetry-bench/ — static page
+  (`asymbench/dashboard/index.html`) + `data.json`, deployed by
+  `tools/deploy_dashboard.sh` to `Miwi343/asymmetry-bench` (live) and this
+  repo's `gh-pages` branch (serves at
+  cornelldatascience.github.io/multi-agent-coop once an org admin enables
+  Pages — needs admin, my token has write only). Teammate test requests =
+  prefilled GitHub issues (`[Test request]` + config JSON); the site lists
+  them with status chips from issue state/labels. Workflow documented in
+  README §Public dashboard.
+- An earlier Claude-artifact version of the dashboard was published before the
+  team lead asked for a real website instead
+  (https://claude.ai/artifact/6wn6QYByN6XhBer1VSkhwU, private, store empty);
+  pending their call on deleting it.

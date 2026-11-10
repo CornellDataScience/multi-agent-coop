@@ -12,8 +12,25 @@ from datetime import datetime, timezone
 from . import metrics as metrics_mod
 from .agent import AgentRole, EpisodeContext
 from .judge import judge_episode, split_events
+from .settings import resolve_model
 from .tasks import TASKS
 from .tasks.base import DEFAULT_CONDITION, run_capability_survey
+
+
+def cost_by_provider(turns: list[dict], judge_model: str, judge_cost: float) -> dict:
+    """Exact per-provider cost split: every agent call (including surveys) is a
+    turn record carrying its model and cost; the judge call is added on top."""
+    split: dict[str, float] = {}
+    for t in turns:
+        c = t.get("cost_usd") or 0.0
+        if not c:
+            continue
+        prov = resolve_model(t.get("model", "")).provider
+        split[prov] = split.get(prov, 0.0) + c
+    if judge_cost:
+        prov = resolve_model(judge_model).provider
+        split[prov] = split.get(prov, 0.0) + judge_cost
+    return {k: round(v, 6) for k, v in split.items()}
 
 
 def _now() -> str:
@@ -142,6 +159,8 @@ async def run_episode(task_id: str, seed: int, test_model: str, counterpart_mode
         "tokens_in": ctx.tokens_in,
         "tokens_out": ctx.tokens_out,
         "cost_usd": ctx.cost_usd,
+        "cost_by_provider": cost_by_provider(
+            ctx.turns, judge_model, judge_result.get("cost_usd", 0.0)),
         "status": "done",
         "error": None,
         "started_at": started,

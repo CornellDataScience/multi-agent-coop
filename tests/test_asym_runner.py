@@ -93,6 +93,21 @@ def test_mock_run_end_to_end(tmp_path):
     assert ep["fields"] and ep["turns"]["turns"] and ep["turns"]["system_prompts"]
 
 
+def test_cost_split_unit():
+    from asymbench.episode import cost_by_provider
+    turns = [{"model": "claude-sonnet-5", "cost_usd": 0.5},
+             {"model": "meta-llama/llama-3.1-8b-instruct", "cost_usd": 0.1},
+             {"model": "mock/weak", "cost_usd": 0.0}]
+    split = cost_by_provider(turns, "claude-haiku-5-5", 0.05)
+    assert split == {"anthropic": 0.55, "openrouter": 0.1}
+
+
+def test_progress_carries_provider_split():
+    run_id = run_mock()
+    prog = db.get_run(run_id)["progress"]
+    assert prog["cost_by_provider"] == {"anthropic": 0.0, "openrouter": 0.0}
+
+
 def test_budget_stop():
     async def go():
         run_id = await runner.create_run(MOCK_CONFIG)

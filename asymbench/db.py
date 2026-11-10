@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS episodes (
   survey_json TEXT, detection_json TEXT, judge_json TEXT, judge_model TEXT,
   judge_failed INTEGER DEFAULT 0, excluded INTEGER DEFAULT 0,
   tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, cost_usd REAL DEFAULT 0,
+  cost_anthropic REAL DEFAULT 0, cost_openrouter REAL DEFAULT 0,
   error TEXT, started_at TEXT, finished_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_episodes_run ON episodes(run_id, task, counterpart_model);
@@ -53,8 +54,18 @@ def connect() -> sqlite3.Connection:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.executescript(SCHEMA)
+        _migrate(conn)
         _local.conn = conn
     return _local.conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Additive migrations for databases created by earlier versions."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(episodes)")}
+    for col in ("cost_anthropic", "cost_openrouter"):
+        if col not in cols:
+            conn.execute(f"ALTER TABLE episodes ADD COLUMN {col} REAL DEFAULT 0")
+    conn.commit()
 
 
 def _j(value) -> str | None:
@@ -105,6 +116,14 @@ def update_run(run_id: str, **fields) -> None:
     vals.append(run_id)
     conn.execute(f"UPDATE runs SET {', '.join(sets)} WHERE id = ?", vals)
     conn.commit()
+
+
+def run_cost_split(run_id: str) -> dict:
+    """Live per-provider cost totals for a run, summed over its episodes."""
+    row = connect().execute(
+        "SELECT COALESCE(SUM(cost_anthropic), 0) a, COALESCE(SUM(cost_openrouter), 0) o "
+        "FROM episodes WHERE run_id = ?", (run_id,)).fetchone()
+    return {"anthropic": round(row["a"], 6), "openrouter": round(row["o"], 6)}
 
 
 def add_run_cost(run_id: str, cost: float) -> float:

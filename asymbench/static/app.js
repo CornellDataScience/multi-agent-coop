@@ -63,6 +63,17 @@ $("#error-dismiss").addEventListener("click", () => { $("#error-banner").hidden 
 const fmt = (v, d = 2) => (v == null || Number.isNaN(v)) ? "—" : Number(v).toFixed(d);
 const fmtMoney = (v) => v == null ? "—" : "$" + Number(v).toFixed(2);
 
+// "Claude $15.13 · OpenRouter $0.49" under a run's total; updates live with
+// the same polling that refreshes progress. Hidden when no provider has spend.
+function costSplitLine(split) {
+  if (!split) return null;
+  const parts = [];
+  if (split.anthropic) parts.push(`Claude ${fmtMoney(split.anthropic)}`);
+  if (split.openrouter) parts.push(`OpenRouter ${fmtMoney(split.openrouter)}`);
+  if (!parts.length) return null;
+  return el("div", { class: "dim small", style: "white-space:nowrap" }, parts.join(" · "));
+}
+
 function ciSpan(ci, d = 2, pct = false) {
   if (!ci || ci.mean == null) return el("span", { class: "dim" }, "—");
   const f = (v) => pct ? (100 * v).toFixed(0) + "%" : Number(v).toFixed(d);
@@ -588,7 +599,9 @@ async function pageRuns() {
             el("div", { style: `width:${pct}%` })),
           el("span", { class: "dim small" }, `${p.done || 0}/${p.total || 0}` +
             (p.failed ? ` (${p.failed} failed)` : ""))),
-        el("td", { class: "num" }, `${fmtMoney(r.cost_usd)} / ${fmtMoney(r.budget_usd)}`),
+        el("td", { class: "num" },
+          el("div", {}, `${fmtMoney(r.cost_usd)} / ${fmtMoney(r.budget_usd)}`),
+          costSplitLine(p.cost_by_provider)),
         el("td", { title: r.created_at }, relTime(r.created_at)),
         el("td", {}, runActions(r, load)));
       body.append(tr);
@@ -930,7 +943,8 @@ async function pageRunDetail(runId) {
       el("div", { class: "row", style: "margin-top:6px" },
         el("span", {}, "Test model: ", el("span", { class: "mono" }, run.test_model)),
         el("span", {}, "Created: ", el("span", { title: run.created_at }, relTime(run.created_at))),
-        el("span", {}, `Cost: ${fmtMoney(run.cost_usd)} / ${fmtMoney(run.budget_usd)}`),
+        el("span", {}, `Cost: ${fmtMoney(run.cost_usd)} / ${fmtMoney(run.budget_usd)}`,
+          costSplitLine(p.cost_by_provider)),
         el("span", { style: "min-width:160px", class: "row" },
           el("span", { class: "progress", style: "flex:1" }, el("div", { style: `width:${pct}%` })),
           el("span", { class: "dim small" }, `${p.done || 0}/${p.total || 0}${p.failed ? ` (${p.failed} failed)` : ""}`)),
