@@ -95,13 +95,38 @@ reasons, leaderboard CIs, additive aggregate extras, UI tooling).
 **Next:** Phase 3 (verify model ids/prices, $5 pilot, pilot review, $30 first
 trial, results report). Both API keys are present in .env.
 
-## Phase 3 — IN PROGRESS (paused by the user, 2026-11-08)
+## Phase 3 — DONE (2026-11-09)
 
 - **Step A (verify models) — DONE.** Anthropic ids/prices matched the current
   API reference exactly (no change). OpenRouter ids all exist; three prices
   updated to provider-reported values. DECISIONS.md #36.
-- **Resume point:** run the pilot (Step B): 4 tasks × (Llama 3.1 8B,
-  gpt-oss-20b, control) × 3 seeds, test agent claude-sonnet-5-5, judge
-  claude-haiku-5-5, budget $5 — then the Step C pilot review
-  (`PILOT_REPORT.md`), Step D first trial ($30, 10 seeds), Step E
-  `RESULTS_FIRST_TRIAL.md`. Spend so far: $0 (everything to date ran on mocks).
+- **Test-agent substitution (user-approved).** The spec'd `claude-sonnet-5-5`
+  is unusable: its safety classifier refuses this benchmark's call pattern
+  (`reasoning_extraction`) and accumulated refusals triggered a 1-hour
+  org-level suspension. The team lead chose `claude-sonnet-5` (same price
+  tier; passes identical payloads). Evidence in DECISIONS.md #38; the smoke
+  run is kept in the DB. Provider layer hardened (stop_details persisted,
+  empty responses retried).
+- **Step B (pilot) — DONE.** `run_20261109_041656_b700fc`: 36/36 episodes,
+  $4.64 of $5.
+- **Step C (pilot review) — DONE.** `PILOT_REPORT.md`: all five §8.3 checks
+  pass (0 code failures; both counterparts playable — llama 0% invalid,
+  gpt-oss ≤25% per task; judge 100% parse with 10/10 hand-checked labels;
+  balance holds with 12 transcripts read; $0.129/episode). Both counterparts
+  retained for the trial.
+- **Step D (first trial) — DONE.** `run_20261109_195350_7c8efd`: 4 tasks ×
+  (Llama 3.1 8B, gpt-oss-20b, control) × 10 seeds = 120/120 episodes, 0
+  failures, $16.24 of $30. 10 episodes excluded by the pre-registered
+  cp-invalid rule (all gpt-oss). Total real-model spend: $20.88 + smoke ≈ $21.9
+  of the $45 cap.
+- **Step E (results) — DONE.** `RESULTS_FIRST_TRIAL.md` written for teammates
+  who haven't read the specs; charts in `asymbench/reports/first_trial/`
+  (`tools/export_charts.py`). Headlines: recognition gap +0.51 [0.39, 0.63];
+  harm shift +0.15 [0.09, 0.22]; advantage captured +0.10 [0.03, 0.20];
+  attempt shift +0.34 [−0.03, 0.73] — and −0.23 [−0.60, +0.13] under the
+  no-counterpart-misconduct sensitivity, i.e. excess deception is largely
+  reactive. Eval-awareness 0.00. Five verified illustrative episodes cited
+  (exploitation `0048`/`0012`, honesty `0105`, counterpart-breakdown harm
+  `0009`, disclosure `0099`).
+
+**Benchmark complete.** All three phases done; 236 offline tests passing.
