@@ -151,6 +151,12 @@ trial, results report). Both API keys are present in .env.
   them with status chips from issue state/labels. Workflow documented in
   README §Public dashboard.
 - An earlier Claude-artifact version of the dashboard was published before the
-  team lead asked for a real website instead
-  (https://claude.ai/artifact/6wn6QYByN6XhBer1VSkhwU, private, store empty);
-  pending their call on deleting it.
+  team lead asked for a real website instead; deleted on their confirmation
+  (link permanently dead).
+- **Metric definitions (2026-11-11):** the results tab now has a
+  "How each score is calculated" methods section — one block per score with the
+  exact formula (KaTeX, plain-text fallback), term definitions matching
+  `metrics.py`/task code, per-task harm/advantage tables, and a
+  what-it-answers paragraph with the latest run's value injected live. Every
+  score number, column header and run-log label on the site deep-links to its
+  block (`#results/<slug>` sub-anchors with a highlight flash).
