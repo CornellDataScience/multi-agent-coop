@@ -25,31 +25,49 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev,claude]"   # Claude API backend
 ```
 
-Run the commands below from the repository root. Installation creates the
-`infocoop` terminal command. You can also use `.venv/bin/python -m src.main`
-instead of `.venv/bin/infocoop`.
+Run the commands below from the repository root. Run commands from the repository root with `.venv/bin/python -m src.main`.
 
 ## Terminal guide
 
 ### 1. See available conditions and options
 
 ```bash
-.venv/bin/infocoop --help
-.venv/bin/infocoop conditions
-.venv/bin/infocoop run --help
+.venv/bin/python -m src.main --help
+.venv/bin/python -m src.main conditions
+.venv/bin/python -m src.main run --help
 ```
 
 `conditions` lists the built-in experiment conditions. Each `run` takes one
 condition name, then optional model and game settings. Unspecified options use
 the condition or game defaults.
 
+The separate Keynesian beauty contest can be run with:
+
+```bash
+.venv/bin/python -m src.main beauty-contest --pick 50
+```
+
+This runs five fixed-pick baseline agents for ten rounds. To use five Ollama
+players instead, install the optional backend, start Ollama, pull a model, and
+pass its model ID:
+
+```bash
+.venv/bin/python -m pip install -e ".[llm]"
+ollama pull qwen3:8b
+.venv/bin/python -m src.main beauty-contest --model qwen3:8b --temperature 0.7
+```
+
+All five agents use the selected model, with separate reproducible seeds. The
+model ID, temperature, picks, targets, and scores are saved in the JSONL log.
+The game engine is also available as `BeautyContestGame` for custom agents.
+
 ### 2. Run a condition
 
 Start with a deterministic scripted condition to inspect the game mechanics:
 
 ```bash
-.venv/bin/infocoop run all_sustainable
-.venv/bin/infocoop run one_defector
+.venv/bin/python -m src.main run all_sustainable
+.venv/bin/python -m src.main run one_defector
 ```
 
 For Ollama, install the `llm` extra, start Ollama, and pull a model. Then run
@@ -57,14 +75,14 @@ the main condition:
 
 ```bash
 ollama pull llama3.1:8b
-.venv/bin/infocoop run broadcast_unverified --model llama3.1:8b --seeds 5
+.venv/bin/python -m src.main run broadcast_unverified --model llama3.1:8b --seeds 5
 ```
 
 The Claude condition uses the Claude API. Install the `claude` extra and set
 `ANTHROPIC_API_KEY` in `.env` (see [`.env.example`](.env.example)):
 
 ```bash
-.venv/bin/infocoop run broadcast_unverified_claude --model claude-sonnet-5-5 --seeds 5
+.venv/bin/python -m src.main run broadcast_unverified_claude --model claude-sonnet-5-5 --seeds 5
 ```
 
 ### 3. Change run settings from the terminal
@@ -92,7 +110,7 @@ For example, this runs five Qwen games with a lower sampling temperature and
 a changed pool setup:
 
 ```bash
-.venv/bin/infocoop run broadcast_unverified \
+.venv/bin/python -m src.main run broadcast_unverified \
   --model qwen3:8b --temperature 0.2 --prompt neutral_explained \
   --seeds 5 --initial-pool 80 --rounds 8 --out results/qwen_explained
 ```
@@ -105,10 +123,10 @@ derived from each game seed. Claude responses are not seed-controlled.
 ### 4. Inspect and analyze results
 
 ```bash
-.venv/bin/infocoop show results/qwen_explained/          # round-by-round replay
-.venv/bin/infocoop show results/qwen_explained/ --raw     # include model responses
-.venv/bin/infocoop metrics results/qwen_explained/        # aggregate across games
-.venv/bin/infocoop metrics results/qwen_explained/<file>.jsonl  # one game
+.venv/bin/python -m src.main show results/qwen_explained/          # round-by-round replay
+.venv/bin/python -m src.main show results/qwen_explained/ --raw     # include model responses
+.venv/bin/python -m src.main metrics results/qwen_explained/        # aggregate across games
+.venv/bin/python -m src.main metrics results/qwen_explained/<file>.jsonl  # one game
 ```
 
 For this experiment, metrics distinguish first-announcement/first-take

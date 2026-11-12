@@ -10,6 +10,7 @@ from .analysis.replay import format_game
 from .experiments.configs import CONDITIONS, get_condition
 from .experiments.metrics import aggregate, summarize_game
 from .experiments.runner import run_condition
+from .game.beauty_contest import BeautyContestGame, FixedPickAgent, OllamaBeautyContestAgent
 
 
 def _load_dotenv(path: Path = Path(".env")) -> None:
@@ -96,11 +97,45 @@ def _cmd_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_beauty_contest(args: argparse.Namespace) -> int:
+    game = BeautyContestGame()
+    if args.model:
+        agents = [OllamaBeautyContestAgent(
+            i, args.model, temperature=args.temperature, seed=args.seed * 1000 + i
+        ) for i in range(game.n_agents)]
+    else:
+        agents = [FixedPickAgent(i, args.pick) for i in range(game.n_agents)]
+    def progress(round_no: int, agent_id: int) -> None:
+        print(f"Round {round_no}/10: waiting for player {agent_id + 1}/5 model response...", flush=True)
+
+    if args.model:
+        print(f"Running 5 Ollama players with {args.model}; this requires 50 model responses.", flush=True)
+    result = game.run(agents, seed=args.seed, progress=progress if args.model else None)
+    result["meta"]["agents"] = "ollama" if args.model else "fixed_pick"
+    result["meta"]["model"] = args.model
+    result["meta"]["temperature"] = args.temperature if args.model else None
+    path = game.write_jsonl(result, Path(args.out) / f"keynesian_beauty_contest_seed{args.seed}.jsonl")
+    print(f"Ran {len(result['rounds'])} rounds -> {path}")
+    totals = {i: 0 for i in result["total_points"]}
+    print("\nRound results (player: pick / points / cumulative):")
+    for rnd in result["rounds"]:
+        cells = []
+        for i in sorted(rnd["picks"]):
+            totals[i] += rnd["points"][i]
+            cells.append(f"P{i}: {rnd['picks'][i]} / +{rnd['points'][i]} / {totals[i]}")
+        print(f"R{rnd['round']:>2}  target={rnd['target']:.2f}  " + " | ".join(cells))
+    print(f"\nWinner: P{result['winner']} with {result['total_points'][result['winner']]} points")
+    print("Final scores:")
+    for i in result["final_ranking"]:
+        print(f"  P{i}: {result['total_points'][i]}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="infocoop",
+        prog="python -m src.main",
         description="Run and analyze the Fisherman's Dilemma LLM experiments.",
-        epilog="Run 'infocoop run --help' for model and game options.",
+        epilog="Run 'python -m src.main run --help' for model and game options.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -139,6 +174,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_s.add_argument("path")
     p_s.add_argument("--raw", action="store_true", help="also print each agent's raw model output")
     p_s.set_defaults(func=_cmd_show)
+
+    p_b = sub.add_parser("beauty-contest", help="run a 5-agent Keynesian beauty contest")
+    p_b.add_argument("--pick", type=int, default=50, help="fixed pick used by each baseline agent (1-100)")
+    p_b.add_argument("--model", help="use this Ollama model for all five players (e.g. qwen3:8b)")
+    p_b.add_argument("--temperature", type=float, default=0.7, help="Ollama sampling temperature")
+    p_b.add_argument("--seed", type=int, default=0)
+    p_b.add_argument("--out", default="results")
+    p_b.set_defaults(func=_cmd_beauty_contest)
 
     return parser
 
