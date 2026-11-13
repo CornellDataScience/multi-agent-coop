@@ -19,3 +19,9 @@ date, phase, decision, why. Keep entries short.
 | 2026-11-13 | 2 | `uptake` counts a received digit as used iff the guess has that digit in the sender's position; "prior liar" = lied to this agent in an earlier round | Direct reading of SPEC §8 from logged data only |
 | 2026-11-13 | 2 | Model calls are inferred from `parse_status` (ok = 1, retry_ok / fallback = 2); halves split at `rounds // 2`; bootstrap is the percentile CI of the mean | Logs record status, not attempt counts; standard, stdlib-only choices |
 | 2026-11-13 | 2 | Aggregates group per-agent metrics by label: scripted policy, else model | Lets probe conditions (E4) compare the LLM against each opponent type |
+| 2026-11-13 | 3 | `no_memory` prompts omit the round number and the history section | SPEC §5: "each round is presented as if it were the first" |
+| 2026-11-13 | 3 | Retry resends the identical prompt (no error feedback) | Matches Fisherman; keeps the one-retry rule simple |
+| 2026-11-13 | 3 | Parsing accepts digit strings ("7") and integral floats (7.0); a missing or invalid `confidence` becomes `None` instead of failing the guess | Confidence is optional and only feeds calibration; avoids fallbacks over formatting |
+| 2026-11-13 | 3 | JSON is found by scanning every `{` with `raw_decode` and taking the first object with the expected key | JSON inside prose or code fences parses; stray braces don't break it |
+| 2026-11-13 | 3 | Prompts state the history without annotating which received digits were false; agents compare against the revealed code themselves | SPEC §5 says agents can "check who lied"; labeling would add framing |
+| 2026-11-13 | 3 | Agent type in the log comes from the backend class (claude / ollama / mock) | One `KCLLMAgent` serves every backend |
