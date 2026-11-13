@@ -1,6 +1,7 @@
 """Round loop. Owns the code and all ground truth (SPEC §3, ARCHITECTURE §3.7)."""
 from __future__ import annotations
 
+import copy
 import random
 
 from .agents.base import KCAgent
@@ -69,20 +70,28 @@ class KCEnvironment:
         code = self.codes[round_no - 1]
         past = self.log.rounds
 
+        # The log keeps deep copies of observations (snapshotted before the
+        # agent sees them) and of actions (after sanitizing), so an agent that
+        # holds on to either and mutates it can't change ground truth.
+
         # Message phase: build every observation before collecting any action.
         m_obs = {i: build_message_obs(cfg, round_no, i, code, past) for i in range(n)}
+        m_obs_log = copy.deepcopy(m_obs)
         m_act = {i: _sanitize_message(self.agents[i].send_messages(m_obs[i]), i, n) for i in range(n)}
+        m_act = copy.deepcopy(m_act)
         sends = {i: dict(a.sends) for i, a in m_act.items()}
 
         # Guess phase: same discipline.
         g_obs = {i: build_guess_obs(cfg, round_no, i, code, past, sends) for i in range(n)}
+        g_obs_log = copy.deepcopy(g_obs)
         g_act = {i: _sanitize_guess(self.agents[i].make_guess(g_obs[i]), n) for i in range(n)}
+        g_act = copy.deepcopy(g_act)
 
         solved = {i: g_act[i].guess == code for i in range(n)}
         points, n_solvers, bonus = round_points(solved, cfg)
         rec = RoundRecord(round=round_no, code=code, message_actions=m_act, guess_actions=g_act,
                           solved=solved, n_solvers=n_solvers, bonus=bonus, points=points)
-        self.log.add_round(rec, m_obs, g_obs)
+        self.log.add_round(rec, m_obs_log, g_obs_log)
         return rec
 
     def run(self) -> KCGameLog:

@@ -4,7 +4,8 @@ Builders take the full truth (this round's code, past ``RoundRecord``s, this
 round's sends) and return a ``KCObservation`` holding only what the agent may
 know under its information condition (SPEC §5). Nothing here exposes
 ``max_rounds``, other agents' digits before the reveal, messages between
-other pairs, other agents' guesses, or other agents' points.
+other pairs, other agents' guesses, or other agents' points. Under
+``no_memory`` even the round number is hidden (``round`` is None).
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
 class KCObservation:
     agent_id: int
     phase: str  # "message" | "guess"
-    round: int
+    round: int | None  # None under no_memory: every round looks like the first
     n_agents: int
     reward_correct: int
     group_bonus: int
@@ -83,7 +84,7 @@ def _build(cfg: "KCConfig", phase: str, round_no: int, agent_id: int, code, past
     return KCObservation(
         agent_id=agent_id,
         phase=phase,
-        round=round_no,
+        round=None if info == "no_memory" else round_no,
         n_agents=cfg.n_agents,
         reward_correct=cfg.reward_correct,
         group_bonus=cfg.group_bonus,

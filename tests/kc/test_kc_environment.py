@@ -152,21 +152,27 @@ def test_spy_never_sees_hidden_information(info):
     allowed_history_keys = {"round", "code", "sent", "received", "my_guess", "solved",
                             "points", "n_solvers", "bonus"}
 
-    for obs in spy.observations:
+    # The spy is asked message, guess, message, guess, ... so the true round
+    # comes from call order (obs.round is hidden under no_memory).
+    for idx, obs in enumerate(spy.observations):
+        round_no = idx // 2 + 1
+        assert obs.phase == ("message" if idx % 2 == 0 else "guess")
         d = obs.to_dict()
         assert "max_rounds" not in set(_all_keys(d))
-        assert obs.my_digit == codes[obs.round][0]
+        assert obs.my_digit == codes[round_no][0]
         assert obs.my_position == obs.agent_id == 0
         if obs.phase == "message":
             assert obs.received is None
         else:
             # Only what was sent TO the spy this round.
-            rnd = log.rounds[obs.round - 1]
+            rnd = log.rounds[round_no - 1]
             assert obs.received == {j: rnd.message_actions[j].sends[0] for j in (1, 2, 3)}
         if info == "no_memory":
+            assert obs.round is None
             assert obs.history == [] and obs.reputation is None
             continue
-        assert [h["round"] for h in obs.history] == list(range(1, obs.round))
+        assert obs.round == round_no
+        assert [h["round"] for h in obs.history] == list(range(1, round_no))
         for h in obs.history:
             assert set(h) == allowed_history_keys
             past = log.rounds[h["round"] - 1]
@@ -256,3 +262,86 @@ def test_codes_override_must_cover_rounds():
 
 def test_kc_game_log_is_exported():
     assert KCGameLog
+
+
+# --- No-memory round hiding ---------------------------------------------------
+
+@pytest.mark.parametrize("policy", ["honest", "hoarder", "liar", "reciprocator", "grudger", "excluder"])
+def test_no_memory_hides_round_and_scripted_agents_still_play(policy, tmp_path):
+    cfg = KCConfig(info_condition="no_memory", max_rounds=3, seed=3)
+    log = KCEnvironment(cfg, _lineup(policy, "honest", "liar", "reciprocator"), "nm").run()
+    assert len(log.rounds) == 3
+    game = load_game(log.write_jsonl(tmp_path / "nm.jsonl"))
+    for rec in game["rounds"]:
+        for phase in ("message", "guess"):
+            assert all(o["round"] is None for o in rec["observations"][phase].values())
+
+
+def test_rounds_visible_outside_no_memory():
+    cfg = KCConfig(info_condition="private_memory", max_rounds=2)
+    log = KCEnvironment(cfg, _lineup(*["honest"] * 4), "pm").run()
+    assert [obs[0].round for obs in log.message_obs] == [1, 2]
+
+
+# --- Logged data is isolated from agents ---------------------------------------
+
+class HonestHoarder(KCAgent):
+    """Honest agent that keeps every observation and action it handles and
+    vandalizes them later, to prove the log holds its own copies."""
+
+    def __init__(self, agent_id, vandalize):
+        super().__init__(agent_id)
+        self.vandalize = vandalize
+        self.kept = []
+
+    def describe(self):
+        return {"id": self.agent_id, "type": "scripted", "policy": "honest"}
+
+    def _mess_up(self):
+        for obs, act in self.kept:
+            if obs.received is not None:
+                obs.received.clear()
+                obs.received[99] = 9
+            for h in obs.history:
+                if "received" in h:
+                    h["code"] = [9, 9, 9, 9]
+                    h["received"].clear()
+            obs.history.append({"round": -1})
+            if obs.reputation is not None:
+                for r in obs.reputation.values():
+                    r["lie"] = 42.0
+            if isinstance(act, MessageAction):
+                act.sends.clear()
+                act.sends[1] = 0
+            else:
+                act.guess = (9, 9, 9, 9)
+            act.usage["input_tokens"] = 10**6
+
+    def send_messages(self, obs):
+        if self.vandalize:
+            self._mess_up()  # mid-game: mutate earlier rounds' objects
+        act = MessageAction(sends={j: obs.my_digit for j in range(obs.n_agents) if j != self.agent_id})
+        self.kept.append((obs, act))
+        return act
+
+    def make_guess(self, obs):
+        guess = [obs.received.get(j) or 0 for j in range(obs.n_agents)]
+        guess[self.agent_id] = obs.my_digit
+        act = GuessAction(guess=tuple(guess))
+        self.kept.append((obs, act))
+        return act
+
+
+def test_mutating_returned_observations_and_actions_does_not_change_log(tmp_path):
+    cfg = KCConfig(info_condition="public_reputation", max_rounds=4, seed=8)
+    clean = KCEnvironment(cfg, [HonestHoarder(0, False)] + _lineup("liar", "grudger", "excluder", start=1),
+                          "iso").run().write_jsonl(tmp_path / "clean.jsonl")
+
+    vandal = HonestHoarder(0, True)
+    log = KCEnvironment(cfg, [vandal] + _lineup("liar", "grudger", "excluder", start=1), "iso").run()
+    before = log.write_jsonl(tmp_path / "vandal_before.jsonl").read_text()
+    vandal._mess_up()  # after the game: mutate everything it was ever handed
+    after = log.write_jsonl(tmp_path / "vandal_after.jsonl").read_text()
+
+    assert before == after
+    assert after == clean.read_text()

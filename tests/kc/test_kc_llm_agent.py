@@ -136,6 +136,33 @@ def test_mock_backend_end_to_end_game():
     assert log.agents[0] == {"id": 0, "type": "mock", "model": "mock", "prompt_variant": "neutral"}
 
 
+def test_always_junk_backend_falls_back_and_is_logged(tmp_path):
+    """Invariant 6 end to end: two bad replies per action -> SPEC §6 fallback,
+    recorded as parse_status "fallback" in the JSONL."""
+    from src.knowledge_commons.log import load_game
+    from src.knowledge_commons.metrics import summarize_game
+
+    cfg = KCConfig(max_rounds=3)
+    codes = [(1, 2, 3, 4), (5, 6, 7, 8), (9, 0, 1, 2)]
+    backend = MockBackend(replies=["I'd rather not say.", "{not json"])
+    agents = [KCLLMAgent(0, backend)] + [make_scripted("honest", i) for i in (1, 2, 3)]
+    path = KCEnvironment(cfg, agents, "junk", codes=codes).run().write_jsonl(tmp_path / "junk.jsonl")
+
+    game = load_game(path)
+    assert len(backend.calls) == 3 * 2 * 2  # 3 rounds x 2 phases x (try + retry)
+    for rec, code in zip(game["rounds"], codes):
+        for phase in ("message", "guess"):
+            act = rec["actions"][phase][0]
+            assert act["parse_status"] == "fallback"
+            assert act["raw_output"] == "{not json"
+        assert rec["sends"][0] == {1: None, 2: None, 3: None}
+        # Fallback guess: own digit + received digits (honest agents told the truth).
+        assert rec["guesses"][0] == list(code)
+        assert rec["confidence"][0] is None
+    g = summarize_game(path)["game"]
+    assert g["fallback_rate"] == pytest.approx(1.0) and g["calls"] == 12
+
+
 def test_unknown_variant_fails_fast():
     with pytest.raises(KeyError):
         KCLLMAgent(0, MockBackend(replies=["x"]), prompt_variant="nope")
@@ -179,6 +206,21 @@ def test_prompt_contents_by_condition():
     s, p = build_prompts(_msg_obs("public_reputation"))
     assert "Record of every agent" in p
     assert "agent 1: true 0%, nothing 0%, false 100% (6 chances to send)" in p
+
+
+def test_message_prompt_states_send_options_neutrally():
+    s, p = build_prompts(_msg_obs())
+    assert "The digit you send can be your real digit or any other digit" in p
+    assert "does not have to be" not in p
+
+
+@pytest.mark.parametrize("phase", ["message", "guess"])
+def test_no_memory_prompt_works_with_hidden_round(phase):
+    obs = _msg_obs("no_memory") if phase == "message" else _guess_obs("no_memory")
+    assert obs.round is None
+    s, p = build_prompts(obs)
+    assert "None" not in p and "round 3" not in p.lower()
+    assert "You are agent 0. Your digit (position 0) this round is 4." in p
 
 
 def test_no_memory_prompt_contains_no_past_rounds():

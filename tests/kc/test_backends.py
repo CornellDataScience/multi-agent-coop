@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from src.agents.backends import ChatResult, ClaudeBackend, MockBackend, OllamaBackend
 
 
@@ -66,6 +68,21 @@ def test_ollama_backend_text_options_and_usage():
 def test_ollama_backend_without_counts_has_empty_usage():
     result = OllamaBackend(chat_fn=lambda **kw: {"message": {"content": "x"}})("s", "p")
     assert result.usage == {}
+
+
+def test_network_is_blocked_in_kc_tests():
+    """conftest.py guard: real clients and raw sockets both refuse."""
+    import socket
+
+    blocked = "network access is disabled"
+    with pytest.raises(RuntimeError, match=blocked):
+        ClaudeBackend(model="claude-haiku-5-5")("sys", "prompt")
+    with pytest.raises(RuntimeError, match=blocked):
+        OllamaBackend(model="llama3.1:8b")("sys", "prompt")
+    with pytest.raises(RuntimeError, match=blocked):
+        socket.socket()
+    with pytest.raises(RuntimeError, match=blocked):
+        socket.create_connection(("example.com", 443))
 
 
 def test_mock_backend_cycles_replies_and_records_calls():

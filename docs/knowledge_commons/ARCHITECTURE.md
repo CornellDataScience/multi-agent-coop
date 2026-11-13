@@ -37,7 +37,9 @@ tests/kc/
     test_kc_llm_agent.py  test_kc_metrics.py  test_kc_runner.py
     test_kc_report.py  test_backends.py
 docs/knowledge_commons/
-    SPEC.md  ARCHITECTURE.md  PHASES.md  DECISIONS.md  RESULTS.md (Phase 5)
+    SPEC.md  ARCHITECTURE.md  PHASES.md  DECISIONS.md
+    report/                    # `kc report` default --out (Phase 5):
+                               # data.json, RESULTS.md, charts
 ```
 
 Test files in `tests/kc/` use the `test_kc_` prefix so their basenames never
@@ -54,6 +56,8 @@ Only these. Anything else needs a note in `DECISIONS.md` and a reason.
 | `src/main.py` | Add a `kc` subcommand group. Existing commands unchanged |
 | `pyproject.toml` | Add optional extra `viz = ["matplotlib>=3.7"]` |
 | `README.md` | Add a short "Knowledge Commons" section linking to the docs |
+| `CLAUDE.md` | New file: working rules for coding agents on this repo |
+| `.claude/settings.json` | New file: Claude Code project settings (no AI attribution in commits) |
 
 **The existing Fisherman test files must pass without being edited.**
 
@@ -159,7 +163,7 @@ def utilities(totals: dict[int, int], alpha: float) -> dict[int, float]
 class KCObservation:
     agent_id: int
     phase: str                       # "message" | "guess"
-    round: int
+    round: int | None                # None under no_memory
     n_agents: int
     reward_correct: int; group_bonus: int; bonus_threshold: int; alpha: float
     info_condition: str
@@ -289,9 +293,14 @@ was excluded by all others.
    action in that phase is collected. No agent's message depends on another's
    message in the same round.
 3. **Firewall.** No observation ever contains another agent's digit before the
-   reveal, messages between other pairs, other agents' guesses, other agents'
-   points (beyond `n_solvers` and `bonus`), or `max_rounds`. `no_memory`
-   observations have empty `history` and no `reputation`.
+   reveal, messages between other pairs in the current round, other agents'
+   guesses, other agents' points (beyond `n_solvers` and `bonus`), or
+   `max_rounds`. `no_memory` observations have `round = None`, empty
+   `history`, and no `reputation`. Under `public_reputation`, past rounds'
+   sends are effectively public by design (the code is revealed each round,
+   so differences in reputation between rounds can reveal who sent what); the
+   guarantee is about the current round (SPEC §5). The log stores deep copies
+   of observations and actions, so agents cannot change logged data.
 4. **Reputation correctness.** Reputation rates equal rates computed
    independently from the log of earlier rounds.
 5. **Scoring.** `points` match `round_points`; `end.utilities` match
@@ -301,5 +310,6 @@ was excluded by all others.
 7. **Reproducible metrics.** Metrics are computed from JSONL alone, with no
    model calls and no live objects.
 8. **No network in tests.** Every LLM test injects `chat_fn` or uses
-   `MockBackend`.
+   `MockBackend`. `tests/kc/conftest.py` blocks sockets and the real
+   Claude/Ollama clients for every KC test.
 9. **Fisherman untouched.** Existing tests pass unedited.

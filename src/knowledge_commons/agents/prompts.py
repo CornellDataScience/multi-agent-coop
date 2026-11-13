@@ -35,7 +35,7 @@ def _values(obs: KCObservation) -> dict[str, str]:
         "n_agents": str(obs.n_agents),
         "n_others": str(obs.n_agents - 1),
         "last_position": str(obs.n_agents - 1),
-        "round": str(obs.round),
+        "round": "" if obs.round is None else str(obs.round),
         "my_digit": str(obs.my_digit),
         "reward_correct": str(obs.reward_correct),
         "group_bonus": str(obs.group_bonus),

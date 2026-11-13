@@ -1,5 +1,7 @@
 """Metrics are computed from saved JSONL only. Expected values are worked out
 by hand in the comments."""
+from pathlib import Path
+
 import pytest
 
 from src.knowledge_commons.agents.base import KCAgent
@@ -210,3 +212,76 @@ def test_replay_shows_rounds_and_marks_lies(recip_path):
     assert "code 1 2 3 4" in text
     assert "LIE" in text and "--" in text  # a lie and a withheld send
     assert "raw" not in text
+
+
+# --- Invariant 7: metrics from a hand-written JSONL, no live environment -----
+#
+# fixtures/hand_game.jsonl: 3 agents, 2 rounds, R=10, B=10, T=2, alpha=0.5.
+#   R1 code 1 2 3.  0->1: 1 T, 0->2: 1 T | 1->0: 2 T, 1->2: -- W | 2->0: 5 L, 2->1: 3 T
+#      guesses 0:[1,2,5] x  1:[1,2,3] ok  2:[1,0,3] x  -> 1 solver, no bonus, pts 0/10/0
+#   R2 code 4 5 6.  0->1: 4 T, 0->2: -- W | 1->0: 5 T, 1->2: 5 T | 2->0: 6 T, 2->1: 6 T
+#      guesses 0:[4,5,6] ok 1:[4,5,6] ok 2:[0,5,6] x  -> 2 solvers, bonus, pts 20/20/10
+#   Agent 0 is the "LLM": statuses ok, retry_ok, ok, fallback; each action 100 in / 10 out.
+
+FIXTURE = Path(__file__).parent / "fixtures" / "hand_game.jsonl"
+
+
+def test_metrics_on_hand_written_fixture(monkeypatch):
+    from src.knowledge_commons import environment as env_mod
+
+    def no_live_games(*a, **kw):
+        raise AssertionError("metrics must not run a live game")
+
+    monkeypatch.setattr(env_mod.KCEnvironment, "run", no_live_games)
+    m = summarize_game(FIXTURE)
+    g, a = m["game"], m["agents"]
+
+    # Dyads: R1 4 T, 1 W, 1 L; R2 5 T, 1 W -> 12 total: 9 T, 2 W, 1 L.
+    assert (g["dyad_rounds"], g["truthful"], g["withheld"], g["lie"]) == (12, 9, 2, 1)
+    assert g["information_flow"] == pytest.approx(9 / 12)
+    assert g["flow_by_round"] == pytest.approx([4 / 6, 5 / 6])
+    assert g["first_half_flow"] == pytest.approx(4 / 6) and g["second_half_flow"] == pytest.approx(5 / 6)
+    assert g["bonus_rate"] == 0.5 and g["mean_n_solvers"] == 1.5
+    # Welfare 0+10+0 + 20+20+10 = 60; max = 3 agents * 20 * 2 rounds = 120.
+    assert g["welfare"] == 60 and g["efficiency"] == 0.5
+    # 4 model actions: 1 retry_ok, 1 fallback; calls 1 + 2 + 1 + 2 = 6.
+    assert g["model_actions"] == 4 and g["retry_rate"] == 0.25 and g["fallback_rate"] == 0.25
+    assert (g["calls"], g["input_tokens"], g["output_tokens"]) == (6, 400, 40)
+
+    # Totals 20 / 30 / 10. U_i = P_i - 0.5 * mean(others):
+    # U0 = 20 - 0.5*20 = 10, U1 = 30 - 0.5*15 = 22.5, U2 = 10 - 0.5*25 = -2.5.
+    assert [a[i]["P"] for i in range(3)] == [20, 30, 10]
+    assert [a[i]["U"] for i in range(3)] == pytest.approx([10.0, 22.5, -2.5])
+    assert [a[i]["rank"] for i in range(3)] == [2, 1, 3]
+    assert [a[i]["solve_rate"] for i in range(3)] == [0.5, 1.0, 0.0]
+
+    # Each agent: 3 of 4 sends truthful; the 4th is W (0, 1) or L (2).
+    assert (a[0]["truthful_rate"], a[0]["withhold_rate"], a[0]["lie_rate"]) == (0.75, 0.25, 0.0)
+    assert (a[1]["truthful_rate"], a[1]["withhold_rate"], a[1]["lie_rate"]) == (0.75, 0.25, 0.0)
+    assert (a[2]["truthful_rate"], a[2]["withhold_rate"], a[2]["lie_rate"]) == (0.75, 0.0, 0.25)
+    # Targeted: 0 mixes only in R2, 1 and 2 only in R1 -> 1 of 2 rounds each.
+    assert [a[i]["targeted_rounds"] for i in range(3)] == [0.5, 0.5, 0.5]
+
+    # Reciprocity at t=2:
+    #  0: j=1 was T -> 0 sends T (1/1); j=2 lied -> 0 withholds (0/1) => 1 - 0 = 1.
+    #  1: both 0 and 2 were T to 1 in R1 -> "not truthful" case never occurs => None.
+    #  2: j=0 was T -> T (1/1); j=1 withheld -> 2 still sends T (1/1) => 1 - 1 = 0.
+    assert a[0]["reciprocity"] == 1.0 and a[1]["reciprocity"] is None and a[2]["reciprocity"] == 0.0
+
+    # 2 lied to 0 in R1; 0 never sends 2 the truth afterwards -> censored.
+    assert a[0]["forgiveness_lag"] == {"mean": None, "n_events": 1, "n_censored": 1}
+    assert a[1]["forgiveness_lag"]["n_events"] == 0
+
+    # Uptake for 0: R1 used 1's 2 and 2's 5 (2 not yet a liar); R2 used 1's 5
+    # and prior-liar 2's 6 -> 4/4 overall, 1/1 from prior liars, 3/3 others.
+    assert a[0]["uptake"] == {"overall": 1.0, "from_prior_liars": 1.0, "from_others": 1.0,
+                              "n_from_prior_liars": 1, "n_from_others": 3}
+    # Uptake for 2: R1 used 0's 1 (1 withheld); R2 used 1's 5 (0 withheld) -> 2/2.
+    assert a[2]["uptake"]["overall"] == 1.0 and a[2]["uptake"]["n_from_others"] == 2
+
+    # Calibration for 0: confidence 0.5 (wrong), 1.0 (right) -> ((0.5)^2 + 0^2) / 2.
+    assert a[0]["calibration"] == pytest.approx(0.125)
+    assert a[1]["calibration"] is None
+
+    assert [a[i]["label"] for i in range(3)] == ["mock", "fixture_b", "fixture_c"]
+    assert m["model"] == "mock" and m["alpha"] == 0.5 and m["info_condition"] == "private_memory"

@@ -1,6 +1,6 @@
 # Knowledge Commons: Spec
 
-Status: DRAFT for team review. Nothing here is implemented yet.
+Status: DRAFT for team review.
 
 ## 1. Goal
 
@@ -115,7 +115,16 @@ targeted lying, tit-for-tat reciprocity, and collapse to no sharing.
 
 In all conditions, agents always see the rules, payoff formula, their own
 position and digit, and (in the guess phase) the digits sent to them this
-round.
+round. Under `no_memory` agents are not shown the round number either.
+
+**Reputation makes past sends effectively public.** Because the code is
+revealed every round, `public_reputation` rates are exact ground truth, and
+an agent can compare one round's rates with the next to work out what each
+other agent sent in the round just finished, sometimes down to which
+recipient got what. This is by design: `public_reputation` is the condition
+where past behavior is public. The firewall guarantee is about the **current
+round**: before the reveal, no agent sees another agent's digit, messages
+between other pairs, or other agents' guesses.
 
 ## 6. Message formats
 

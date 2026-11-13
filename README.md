@@ -149,6 +149,29 @@ Every condition uses the pre-announce-with-revision round structure (§3.1 of
 `specs.md`); there is no no-communication control, since the mechanic requires
 announcements to function at all.
 
+## Knowledge Commons
+
+A second game in the same repo (`src/knowledge_commons/`). Each round, every
+agent privately knows one digit of a shared secret code and may send each
+other agent a digit (true or false) or nothing, then everyone guesses the
+full code. Solving pays each solver, and a group bonus pays everyone when
+enough agents solve. A rivalry weight `alpha` sets how much other agents'
+points count against your own score. It asks where information sharing breaks
+down, whether agents withhold or lie, and whether memory or public reputation
+helps.
+
+```bash
+.venv/bin/infocoop kc list                                    # conditions
+.venv/bin/infocoop kc run kc_all_honest                       # scripted, free
+.venv/bin/infocoop kc run kc_llm --model mock --seeds 2       # LLM path, no network
+.venv/bin/infocoop kc show results/kc/                        # round-by-round replay
+.venv/bin/infocoop kc metrics results/kc/                     # aggregate metrics
+.venv/bin/infocoop kc report results/kc --out docs/knowledge_commons/report
+```
+
+Spec, architecture, build phases, and the decision log are in
+[`docs/knowledge_commons/`](docs/knowledge_commons/).
+
 ## Layout
 
 ```
