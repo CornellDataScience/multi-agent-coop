@@ -18,7 +18,7 @@ python3 -m venv .venv
 
 ---
 
-## Phase 0: Shared backends (no game code yet)
+## Phase 0: Shared backends (no game code yet) [DONE, commit f0c75c0]
 
 **Build:** `src/agents/backends.py` with `ChatResult`, `ClaudeBackend`,
 `OllamaBackend`, `MockBackend` (ARCHITECTURE §3.1). Make `ClaudeAgent._call`

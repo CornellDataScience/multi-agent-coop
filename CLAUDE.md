@@ -34,6 +34,10 @@ repeated social dilemmas. Two games:
 - **Git: work only on the `knowledge-commons` branch.** Never commit to,
   merge into, or push `main`. Never force-push. Don't push at all unless the
   user asks in that message; the change goes to main only through a reviewed PR.
+- **No AI attribution.** No `Co-Authored-By: Claude` trailers, no
+  "Generated with Claude Code" lines, in commits or PR descriptions.
+- **One commit per phase** on `knowledge-commons`, with a plain descriptive
+  message. All of Knowledge Commons ships as a single PR.
 
 - **No network in tests.** Mock every model call (`chat_fn` or `MockBackend`).
   Never make real API calls unless the user explicitly asks in that message.
