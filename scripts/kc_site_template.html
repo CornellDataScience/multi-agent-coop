@@ -6,50 +6,56 @@
 <title>Knowledge Commons Results</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&display=swap">
 <style>
 /* Tabbed report: Findings first, then the Run log, every game's Log, and Method. Tables over decoration. */
 :root {
-  --bg: #f6f7f9; --surface: #ffffff; --ink: #15181e; --dim: #4a5060; --muted: #7c8291; --line: #dfe2e8;
-  --accent: #2f5bd3; --truth: #1f8a56; --lie: #c43c32; --held: #8d93a0;
-  --s1: #2f5bd3; --s2: #d9821f; --s3: #8a3fc9; --s4: #1f9a8a;
-  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Same tokens as the team's Asymmetry Bench page (gh-pages) so the two read as one site. */
+  --bg:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --dim:#52514e; --muted:#898781;
+  --line:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,.10);
+  --accent:#2a78d6; --truth:#006300; --truth-bg:rgba(12,163,12,.12); --lie:#d03b3b; --lie-bg:rgba(208,59,59,.10); --held:#898781;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#6250d6; --s4:#1baf7a;
+  --display:"Archivo",system-ui,sans-serif; --body:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(11,11,11,.05); --radius:12px;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  color-scheme: dark; --bg: #101217; --surface: #181b21; --ink: #eceef2; --dim: #b3b8c4; --muted: #868c99; --line: #2a2e37;
-  --accent: #86a3ff; --truth: #4cc68a; --lie: #f0736a; --held: #6e7480;
-  --s1: #86a3ff; --s2: #f0a24a; --s3: #b98af0; --s4: #4fc7b6;
+  color-scheme:dark; --bg:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --dim:#c3c2b7; --muted:#898781;
+  --line:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+  --accent:#3987e5; --truth:#4fc24f; --truth-bg:rgba(12,163,12,.18); --lie:#e66767; --lie-bg:rgba(230,103,103,.14); --held:#898781;
+  --s1:#3987e5; --s2:#d95926; --s3:#9085e9; --s4:#199e70; --shadow:0 1px 3px rgba(0,0,0,.45);
 } }
 :root[data-theme="dark"] {
-  color-scheme: dark; --bg: #101217; --surface: #181b21; --ink: #eceef2; --dim: #b3b8c4; --muted: #868c99; --line: #2a2e37;
-  --accent: #86a3ff; --truth: #4cc68a; --lie: #f0736a; --held: #6e7480;
-  --s1: #86a3ff; --s2: #f0a24a; --s3: #b98af0; --s4: #4fc7b6;
+  color-scheme:dark; --bg:#0d0d0d; --surface:#1a1a19; --ink:#f0efec; --dim:#c3c2b7; --muted:#898781;
+  --line:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+  --accent:#3987e5; --truth:#4fc24f; --truth-bg:rgba(12,163,12,.18); --lie:#e66767; --lie-bg:rgba(230,103,103,.14); --held:#898781;
+  --s1:#3987e5; --s2:#d95926; --s3:#9085e9; --s4:#199e70; --shadow:0 1px 3px rgba(0,0,0,.45);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { background: var(--bg); color: var(--ink); font: 15px/1.6 var(--body); padding: 0 16px 60px; }
-.wrap { max-width: 1060px; margin: 0 auto; }
-h1, h2, h3 { margin: 0; text-wrap: balance; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); padding: 0 16px 56px; }
+.wrap { max-width: 1020px; margin: 0 auto; }
+h1, h2, h3 { margin: 0; text-wrap: balance; font-family: var(--display); }
 h1 { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
-h2 { font-size: 20px; font-weight: 600; margin: 26px 0 6px; }
+h2 { font-size: 20px; font-weight: 600; margin: 34px 0 6px; }
 h3 { font-size: 15px; font-weight: 600; margin: 18px 0 6px; }
 p { margin: 0 0 10px; }
-.lede { color: var(--dim); max-width: 72ch; }
+.lede { color: var(--dim); max-width: 62ch; margin: 4px 0 18px; }
 .muted { color: var(--muted); } .small { font-size: 13px; }
-header { padding: 28px 0 0; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
-.tagline { color: var(--dim); }
-nav.tabs { display: flex; gap: 4px; margin-top: 10px; flex-wrap: wrap; }
-nav.tabs a { padding: 8px 14px; color: var(--dim); text-decoration: none; border-bottom: 2px solid transparent; font-weight: 500; }
+header { padding: 26px 0 0; display: grid; gap: 4px; }
+.tagline { color: var(--dim); font-size: 13.5px; }
+nav.tabs { display: flex; gap: 2px; margin-top: 18px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+nav.tabs a { font-family: var(--display); font-weight: 600; font-size: 14px; color: var(--dim); text-decoration: none; padding: 9px 14px 10px; border-bottom: 2px solid transparent; white-space: nowrap; }
+nav.tabs a:hover { color: var(--ink); }
 nav.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
 nav.tabs a:focus-visible, button:focus-visible, select:focus-visible, tr[tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.statusbar { font-size: 13px; color: var(--muted); padding: 10px 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
-.box { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
-.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.statusbar { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--dim); margin: 14px 0 0; }
+.box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 4px 8px; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
+th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: top; }
 tr:last-child td { border-bottom: 0; }
-th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; background: var(--bg); }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--baseline); padding: 9px 12px; }
 td.num, th.num { text-align: right; }
 .good { color: var(--truth); font-weight: 600; } .bad { color: var(--lie); font-weight: 600; }
 .na { color: var(--muted); font-size: 13px; }
@@ -57,7 +63,7 @@ ol.findings { margin: 0; padding-left: 20px; display: grid; gap: 10px; max-width
 ol.findings b { color: var(--ink); }
 ol.findings li { color: var(--dim); }
 .quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-blockquote { margin: 0; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+blockquote { margin: 0; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; }
 blockquote.lie { border-left-color: var(--lie); } blockquote.truth { border-left-color: var(--truth); }
 blockquote p { margin: 0 0 6px; }
 blockquote footer { font-size: 12.5px; color: var(--muted); }
@@ -80,13 +86,33 @@ details { margin-top: 4px; } summary { cursor: pointer; color: var(--accent); fo
 .eq { font-family: var(--mono); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 6px 0 10px; overflow-x: auto; }
 ul.plain { margin: 0; padding-left: 18px; color: var(--dim); display: grid; gap: 4px; }
 [hidden] { display: none !important; }
+.sim { display: grid; gap: 12px; margin: 14px 0; }
+.simbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.simbar button { font: 600 14px var(--display); color: var(--ink); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+.simbar button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.simbar button:disabled { opacity: .45; cursor: default; }
+.screens { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.screen { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; display: grid; gap: 7px; align-content: start; }
+.screen.won { border-color: var(--truth); }
+.screen .hd { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.screen .hd b { font-family: var(--display); }
+.screen .row { font-size: 13px; color: var(--dim); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.screen .lab { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); min-width: 64px; }
+.tile { font: 600 14px/1 var(--mono); min-width: 22px; height: 24px; padding: 0 4px; display: inline-grid; place-items: center; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); }
+.tile.truth { border-color: var(--truth); background: var(--truth-bg); color: var(--truth); }
+.tile.lie { border-color: var(--lie); background: var(--lie-bg); color: var(--lie); }
+.tile.held { color: var(--muted); border-style: dashed; }
+.chip { display: inline-flex; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.chip.ok { color: var(--truth); background: var(--truth-bg); } .chip.bad { color: var(--lie); background: var(--lie-bg); }
+.chip.plain { color: var(--dim); border: 1px solid var(--border); }
+.screen .quote { font-size: 13px; color: var(--ink); border-left: 2px solid var(--line); padding-left: 8px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
-  <h1>Knowledge Commons</h1>
-  <span class="tagline">Do AI agents share true information when lying pays? A Multi Agent Co-op game (Cornell Data Science), by Connie Lu.</span>
+  <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 16px"><h1>Knowledge Commons</h1>
+  <span class="tagline">Do AI agents share true information when lying pays? A Multi Agent Co-op game (Cornell Data Science), by Connie Lu.</span></div>
   <nav class="tabs" aria-label="Sections">
     <a href="#findings" data-tab="findings">Findings</a>
     <a href="#runs" data-tab="runs">Run log</a>
@@ -128,7 +154,7 @@ ul.plain { margin: 0; padding-left: 18px; color: var(--dim); display: grid; gap:
 <!-- ================= LOGS ================= -->
 <section class="tab" id="tab-logs" hidden>
   <h2>Game logs</h2>
-  <p class="lede">Every game played. Pick one to see it round by round: the code, every message (green = true, <span class="d lie">red underlined</span> = fake, grey dash = nothing), every guess, and each agent's stated reasons.</p>
+  <p class="lede">Every game played. Pick one to replay it as each agent saw it, round by round, or read the full log below it: the code, every message (green = true, <span class="d lie">red underlined</span> = fake, grey dash = nothing), every guess, and each agent's stated reasons.</p>
   <div class="controls">
     <label for="f-m">Model<select id="f-m"></select></label>
     <label for="f-c">Condition<select id="f-c"></select></label>
@@ -318,8 +344,10 @@ function renderGames() {
 function showGame(i) {
   const g = list[i]; if (!g) return;
   document.querySelectorAll("#games tbody tr").forEach(tr => tr.setAttribute("aria-selected", tr.dataset.i == i));
+  simGame = g; simRound = 0; stopSim();
   let h = `<h3>${esc(M[g.m].label)} · ${esc(C[g.c].label)} (${esc(C[g.c].short)}) · seed ${g.seed}</h3><p class="small muted">Log file: <span class="d">${esc(g.file)}</span></p>
-  <div class="table-wrap"><table><thead><tr><th>Round</th><th>Code</th><th>Messages sent (to agent: digit)</th><th>Guesses</th><th class="num">Solved</th><th class="num">Points</th></tr></thead><tbody>`;
+  <div class="sim"><div class="simbar"><button type="button" id="sim-prev">← Prev</button><button type="button" class="primary" id="sim-play">▶ Play</button><button type="button" id="sim-next">Next →</button><span id="sim-status" class="small"></span></div><div class="screens" id="screens"></div></div>
+  <h3>Full log</h3><div class="table-wrap"><table><thead><tr><th>Round</th><th>Code</th><th>Messages sent (to agent: digit)</th><th>Guesses</th><th class="num">Solved</th><th class="num">Points</th></tr></thead><tbody>`;
   g.rounds.forEach((r, k) => {
     const msgs = r.sends.map((row, s) => `<span>A${s} → ${row.map((d, t) => t === s ? "" : `${t}:<span class="d ${kind(d, r.code[s])}">${d === -1 ? "–" : d}</span>`).filter(Boolean).join(" ")}</span>`).join("");
     const guesses = r.guesses.map((gg, a) => `<span>A${a} <span class="d ${r.solved[a] ? "truth" : "lie"}">${gg.join("")}</span></span>`).join("");
@@ -327,6 +355,41 @@ function showGame(i) {
     h += `<tr><td class="num">${k + 1}</td><td class="d">${r.code.join("")}</td><td><div class="msgs">${msgs}</div><details><summary>Reasons</summary>${why}</details></td><td><div class="msgs">${guesses}</div></td><td class="num">${r.solved.filter(Boolean).length}/4${r.bonus ? " +bonus" : ""}</td><td class="num small">${r.points.join(" / ")}</td></tr>`;
   });
   $("#game-detail").innerHTML = h + `</tbody></table></div>`;
+  $("#sim-prev").onclick = () => { stopSim(); drawSim(simRound - 1); };
+  $("#sim-next").onclick = () => { stopSim(); drawSim(simRound + 1); };
+  $("#sim-play").onclick = () => simTimer ? stopSim() : playSim();
+  drawSim(0);
+}
+/* "screens" replay: what each agent saw and did, one round at a time */
+let simGame = null, simRound = 0, simTimer = null;
+function stopSim() { clearInterval(simTimer); simTimer = null; const b = document.getElementById("sim-play"); if (b) b.textContent = "▶ Play"; }
+function playSim() {
+  if (simRound >= simGame.rounds.length - 1) drawSim(0);
+  $("#sim-play").textContent = "❚❚ Pause";
+  simTimer = setInterval(() => { if (simRound >= simGame.rounds.length - 1) return stopSim(); drawSim(simRound + 1); }, 2600);
+}
+function drawSim(i) {
+  const g = simGame; if (!g) return;
+  simRound = Math.max(0, Math.min(g.rounds.length - 1, i));
+  const r = g.rounds[simRound], n = r.code.length;
+  const totals = g.rounds.slice(0, simRound + 1).reduce((a, rr) => rr.points.map((p, k) => a[k] + p), Array(n).fill(0));
+  const solvers = r.solved.filter(Boolean).length;
+  $("#sim-status").innerHTML = `Round <b>${simRound + 1}</b> of ${g.rounds.length} · code <span class="d">${r.code.join(" ")}</span> · <span class="chip ${solvers >= 3 ? "ok" : solvers ? "plain" : "bad"}">${solvers} of ${n} solved</span> <span class="chip ${r.bonus ? "ok" : "plain"}">${r.bonus ? "bonus paid" : "no bonus"}</span>`;
+  $("#sim-prev").disabled = simRound === 0; $("#sim-next").disabled = simRound === g.rounds.length - 1;
+  const tile = (d, k) => `<span class="tile ${k}">${d === -1 ? "–" : d}</span>`;
+  $("#screens").innerHTML = r.code.map((digit, a) => {
+    const sent = r.sends[a].map((d, t) => t === a ? "" : `<span>→A${t} ${tile(d, kind(d, digit))}</span>`).join("");
+    const got = r.sends.map((row, s2) => s2 === a ? "" : `<span>A${s2} ${tile(row[a], kind(row[a], r.code[s2]))}</span>`).join("");
+    const lies = r.sends[a].filter((d, t) => t !== a && kind(d, digit) === "lie").length;
+    const guess = r.guesses[a].map((d, k) => tile(d, d === r.code[k] ? "truth" : "lie")).join("");
+    return `<div class="screen ${r.solved[a] ? "won" : ""}"><div class="hd"><b>Agent ${a}</b>${lies ? `<span class="chip bad">lied to ${lies}</span>` : `<span class="chip ok">honest</span>`}</div>
+      <div class="row"><span class="lab">My digit</span>${tile(digit, "")}</div>
+      <div class="row"><span class="lab">I sent</span>${sent}</div>
+      <div class="row"><span class="lab">I got</span>${got}</div>
+      <div class="row"><span class="lab">My guess</span>${guess}</div>
+      <div class="row"><span class="lab">Points</span>+${r.points[a]} <span class="muted">(total ${Math.round(totals[a] * 100) / 100})</span></div>
+      ${r.mr[a] ? `<div class="quote">${esc(r.mr[a])}</div>` : ""}</div>`;
+  }).join("");
 }
 $("#games").addEventListener("click", e => { const tr = e.target.closest("tr[data-i]"); if (tr) showGame(+tr.dataset.i); });
 $("#games").addEventListener("keydown", e => { const tr = e.target.closest("tr[data-i]"); if (tr && e.key === "Enter") showGame(+tr.dataset.i); });
