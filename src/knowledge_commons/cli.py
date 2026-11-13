@@ -93,7 +93,7 @@ def add_kc_parser(sub) -> None:
 
     p = ksub.add_parser("run", help="run one condition over one or more seeds")
     p.add_argument("condition", choices=sorted(KC_CONDITIONS))
-    p.add_argument("--model", help="model for LLM agents: 'mock', a claude-* ID, or an Ollama model")
+    p.add_argument("--model", help="model for LLM agents: 'mock', a claude-* ID, openrouter/<id>, or an Ollama model")
     p.add_argument("--effort", choices=["low", "medium", "high", "xhigh", "max"], help="Claude effort")
     p.add_argument("--temperature", type=float, help="Ollama sampling temperature")
     p.add_argument("--prompt", choices=sorted(KC_VARIANTS), help="prompt wording variant")

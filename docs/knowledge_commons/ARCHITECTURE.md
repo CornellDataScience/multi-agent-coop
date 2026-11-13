@@ -9,7 +9,7 @@ Decisions made during implementation go in `DECISIONS.md`.
 ```
 src/
 ├── agents/
-│   └── backends.py            # NEW (Phase 0): shared Claude/Ollama call layer
+│   └── backends.py            # NEW (Phase 0): shared Claude/Ollama/OpenRouter call layer
 └── knowledge_commons/         # NEW: everything game-specific lives here
     ├── __init__.py
     ├── config.py              # KCConfig dataclass + validation
@@ -35,7 +35,7 @@ tests/kc/
     test_kc_config.py  test_kc_scoring.py  test_kc_environment.py
     test_kc_observation.py  test_kc_scripted.py  test_kc_parsing.py
     test_kc_llm_agent.py  test_kc_metrics.py  test_kc_runner.py
-    test_kc_report.py  test_backends.py
+    test_kc_report.py  test_backends.py  test_kc_openrouter.py
 docs/knowledge_commons/
     SPEC.md  ARCHITECTURE.md  PHASES.md  DECISIONS.md
     report/                    # `kc report` default --out (Phase 5):
@@ -59,6 +59,7 @@ Only these. Anything else needs a note in `DECISIONS.md` and a reason.
 | `CLAUDE.md` | New file: working rules for coding agents on this repo |
 | `.claude/settings.json` | New file: Claude Code project settings (no AI attribution in commits) |
 | `scripts/kc_experiments.sh` | New file: runs the KC experiment stages (E2-E4) for one model via `infocoop kc run` |
+| `.env.example` | Add an `OPENROUTER_API_KEY=` line |
 
 **The existing Fisherman test files must pass without being edited.**
 
@@ -87,6 +88,16 @@ class OllamaBackend:
     def __init__(self, model: str, temperature: float = 0.7,
                  seed: int | None = None, chat_fn: Callable | None = None): ...
     def __call__(self, system: str, prompt: str) -> ChatResult: ...
+
+class OpenRouterBackend:
+    def __init__(self, model: str, temperature: float | None = None,
+                 chat_fn: Callable | None = None): ...
+    def __call__(self, system: str, prompt: str) -> ChatResult: ...
+    # POSTs OpenAI-style {model, messages: [system, user]} to
+    # https://openrouter.ai/api/v1/chat/completions with urllib and
+    # OPENROUTER_API_KEY. served_by = response "model"; usage maps
+    # prompt_tokens/completion_tokens -> input_tokens/output_tokens.
+    # Missing key, HTTP errors and error payloads raise OpenRouterError.
 
 class MockBackend:
     """Returns canned or callback-generated JSON. Used for end-to-end runs
@@ -315,7 +326,9 @@ infocoop kc metrics <file|dir>
 infocoop kc report <dir> [<dir> ...] --out docs/knowledge_commons/report
 ```
 
-`--model mock` uses `MockBackend` (no network). `--max-calls` aborts cleanly
+`--model mock` uses `MockBackend` (no network). `--model claude-*` uses
+`ClaudeBackend`; `--model openrouter/<id>` uses `OpenRouterBackend` with
+`<id>` (prefix stripped); anything else is an Ollama model. `--max-calls` aborts cleanly
 (writing completed games) once the run has made that many model calls. Output
 filenames encode condition, model, alpha, info condition, `mustsend` (when
 set), prompt, any `--agents` / `--rounds` / `--pot-size` override, and seed, so
@@ -373,5 +386,5 @@ was excluded by all others.
    model calls and no live objects.
 8. **No network in tests.** Every LLM test injects `chat_fn` or uses
    `MockBackend`. `tests/kc/conftest.py` blocks sockets and the real
-   Claude/Ollama clients for every KC test.
+   Claude/Ollama/OpenRouter clients for every KC test.
 9. **Fisherman untouched.** Existing tests pass unedited.

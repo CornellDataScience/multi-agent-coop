@@ -14,7 +14,8 @@ from .prompt_variants import DEFAULT_VARIANT, get_variant
 from .prompts import build_prompts, build_quiz_prompts
 from .scripted import trusting_guess
 
-_BACKEND_TYPES = {"ClaudeBackend": "claude", "OllamaBackend": "ollama", "MockBackend": "mock",
+_BACKEND_TYPES = {"ClaudeBackend": "claude", "OllamaBackend": "ollama",
+                  "OpenRouterBackend": "openrouter", "MockBackend": "mock",
                   "KCMockBackend": "mock"}
 
 
@@ -25,7 +26,7 @@ def _add_usage(total: dict, usage: dict) -> None:
 
 class KCLLMAgent(KCAgent):
     """``backend`` is any callable ``(system, prompt) -> ChatResult``, e.g.
-    ``ClaudeBackend``, ``OllamaBackend`` or ``MockBackend``. A refusal counts
+    ``ClaudeBackend``, ``OllamaBackend``, ``OpenRouterBackend`` or ``MockBackend``. A refusal counts
     as a parse failure. Usage from every attempt is summed into the action.
     Backend exceptions (network errors, call budgets) propagate."""
 
