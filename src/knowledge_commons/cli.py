@@ -107,3 +107,25 @@ def add_kc_parser(sub) -> None:
     p = ksub.add_parser("metrics", help="metrics for a game file, or aggregate over a directory")
     p.add_argument("path")
     p.set_defaults(func=_cmd_metrics)
+
+    p = ksub.add_parser("report", help="data.json + RESULTS.md + charts from log directories")
+    p.add_argument("paths", nargs="+", help="log directories or files")
+    p.add_argument("--out", default="docs/knowledge_commons/report", help="output directory")
+    p.add_argument("--no-charts", action="store_true", help="skip PNG charts")
+    p.set_defaults(func=_cmd_report)
+
+
+def _cmd_report(args) -> int:
+    from .report import build_report  # keeps matplotlib out of other commands
+
+    try:
+        data = build_report(args.paths, args.out, charts=not args.no_charts)
+    except FileNotFoundError as exc:
+        print(f"{exc} in {' '.join(args.paths)}")
+        return 1
+    print(f"Report: {len(data['groups'])} group(s), {len(data['episodes'])} episode(s) -> {args.out}")
+    for name in ["data.json", "RESULTS.md", *data["charts"]]:
+        print(f"  {Path(args.out) / name}")
+    if not args.no_charts and not data["charts"]:
+        print("  (charts skipped: install the viz extra)")
+    return 0
