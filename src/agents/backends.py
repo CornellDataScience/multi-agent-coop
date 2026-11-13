@@ -7,8 +7,14 @@ actually answered, and token usage. Every backend accepts an injected
 """
 from __future__ import annotations
 
+import json
+import os
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from typing import Callable
+
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 _claude_client = None
 
@@ -26,6 +32,41 @@ def _ollama_chat(**kwargs):
     import ollama  # lazy import: only needed for real Ollama runs
 
     return ollama.chat(**kwargs)
+
+
+class OpenRouterError(RuntimeError):
+    """Missing key, HTTP failure or error payload from OpenRouter."""
+
+
+def _openrouter_post(payload: dict, api_key: str, timeout: float = 300) -> dict:
+    """POST ``payload`` with urllib (no extra dependency) and return the JSON body."""
+    req = urllib.request.Request(
+        OPENROUTER_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")[:500] if e.fp is not None else ""
+        raise OpenRouterError(f"OpenRouter HTTP {e.code} for model {payload.get('model')!r}: {detail}") from e
+    except urllib.error.URLError as e:
+        raise OpenRouterError(f"OpenRouter request failed: {e.reason}") from e
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as e:
+        raise OpenRouterError(f"OpenRouter returned non-JSON: {body[:200]!r}") from e
+
+
+def _openrouter_chat(**payload) -> dict:
+    """Default ``chat_fn``: reads the key at call time so a missing key fails
+    on the first real call, with a message that says what to set."""
+    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
+        raise OpenRouterError("OPENROUTER_API_KEY is not set (add it to .env; see .env.example)")
+    return _openrouter_post(payload, api_key)
 
 
 def _get(obj, name, default=None):
@@ -125,6 +166,48 @@ class OllamaBackend:
                 "output_tokens": int(_get(resp, "eval_count", 0) or 0),
             }
         return ChatResult(text=_get(_get(resp, "message"), "content", ""), served_by=None, usage=usage)
+
+
+class OpenRouterBackend:
+    """OpenRouter chat-completions backend (OpenAI-style messages).
+
+    ``model`` is the OpenRouter ID without the ``openrouter/`` routing prefix,
+    e.g. ``deepseek/deepseek-v4-pro``. ``temperature`` is sent only when set,
+    so each provider's default applies otherwise. Needs ``OPENROUTER_API_KEY``.
+    """
+
+    def __init__(self, model: str, temperature: float | None = None, chat_fn: Callable | None = None):
+        self.model = model
+        self.temperature = temperature
+        self._chat = chat_fn or _openrouter_chat
+
+    def __call__(self, system: str, prompt: str) -> ChatResult:
+        kwargs: dict = dict(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        if self.temperature is not None:
+            kwargs["temperature"] = self.temperature
+        resp = self._chat(**kwargs)
+        error = _get(resp, "error")
+        if error:  # OpenRouter can report upstream failures inside a 200 body
+            msg = _get(error, "message", error)
+            raise OpenRouterError(f"OpenRouter error for model {self.model!r}: {msg}")
+        choices = _get(resp, "choices") or []
+        if not choices:
+            raise OpenRouterError(f"OpenRouter returned no choices for model {self.model!r}")
+        text = _get(_get(choices[0], "message"), "content") or ""
+        raw_usage = _get(resp, "usage")
+        usage = {}
+        if raw_usage is not None:
+            usage = {
+                "input_tokens": int(_get(raw_usage, "prompt_tokens", 0) or 0),
+                "output_tokens": int(_get(raw_usage, "completion_tokens", 0) or 0),
+            }
+        return ChatResult(text=text, served_by=_get(resp, "model"), usage=usage)
 
 
 class MockBackend:

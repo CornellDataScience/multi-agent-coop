@@ -5,7 +5,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
-from ..agents.backends import ClaudeBackend, OllamaBackend
+from ..agents.backends import ClaudeBackend, OllamaBackend, OpenRouterBackend
 from .agents.base import KCAgent
 from .agents.llm import KCLLMAgent
 from .agents.mock import KCMockBackend, mock_responder
@@ -53,6 +53,9 @@ class RunResult:
     message: str = ""
 
 
+OPENROUTER_PREFIX = "openrouter/"
+
+
 def _tag(value: str) -> str:
     """Model IDs can contain ':' or '/', which are awkward in filenames."""
     return "".join(c if c.isalnum() or c in ".-" else "-" for c in value)
@@ -69,9 +72,15 @@ def expand_lineup(specs: list[dict], n: int) -> list[dict]:
 
 def make_backend(model: str, agent_id: int, game_seed: int, effort: str | None = None,
                  temperature: float | None = None, chat_fn: Callable | None = None):
-    """``mock`` -> network-free mock; ``claude-*`` -> Claude API; else Ollama."""
+    """``mock`` -> network-free mock; ``claude-*`` -> Claude API;
+    ``openrouter/<id>`` -> OpenRouter with ``<id>``; else Ollama."""
     if model == "mock":
         return KCMockBackend(responder=mock_responder(game_seed * 1000 + agent_id))
+    if model.startswith(OPENROUTER_PREFIX):
+        model_id = model[len(OPENROUTER_PREFIX):]
+        if not model_id:
+            raise ValueError("--model openrouter/ needs a model ID, e.g. openrouter/deepseek/deepseek-v4-pro")
+        return OpenRouterBackend(model=model_id, temperature=temperature, chat_fn=chat_fn)
     if model.startswith("claude"):
         return ClaudeBackend(model=model, effort=effort or "medium", chat_fn=chat_fn)
     return OllamaBackend(model=model, temperature=0.7 if temperature is None else temperature,

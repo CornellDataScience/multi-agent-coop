@@ -13,6 +13,10 @@
 #   Local Ollama models (free) work too; pass the Ollama model name:
 #     scripts/kc_experiments.sh llama3.1:8b sweep 10
 #
+#   OpenRouter models (needs OPENROUTER_API_KEY in .env); results go under
+#   results/kc/<name with / and : replaced by _>:
+#     scripts/kc_experiments.sh openrouter/deepseek/deepseek-v4-pro sweep 10
+#
 # Every command has a --max-calls cap (2x expected calls) so nothing runs away.
 # All runs start at seed 0, so every model and condition sees the same codes.
 set -euo pipefail
@@ -21,8 +25,9 @@ case "${1:-}" in
   haiku)  MODEL=claude-haiku-5-5 ;;
   sonnet) MODEL=claude-sonnet-5-5 ;;
   opus)   MODEL=claude-opus-5-5 ;;
+  openrouter/?*) MODEL=$1 ;;  # OpenRouter, e.g. openrouter/deepseek/deepseek-v4-pro
   *:*)    MODEL=$1 ;;   # Ollama model, e.g. llama3.1:8b or qwen3:8b
-  *) echo "usage: $0 haiku|sonnet|opus|<ollama-model> sweep|followup SEEDS [ALPHA]"; exit 1 ;;
+  *) echo "usage: $0 haiku|sonnet|opus|<ollama-model>|openrouter/<id> sweep|followup SEEDS [ALPHA]"; exit 1 ;;
 esac
 STAGE=${2:?usage: $0 MODEL sweep|followup SEEDS [ALPHA]}
 SEEDS=${3:?usage: $0 MODEL sweep|followup SEEDS [ALPHA]}
