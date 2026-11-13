@@ -1,7 +1,7 @@
 import pytest
 
 from src.knowledge_commons.config import KCConfig
-from src.knowledge_commons.scoring import classify_send, round_points, utilities
+from src.knowledge_commons.scoring import classify_send, pot_share, round_points, utilities
 
 
 def test_classify_send():
@@ -11,26 +11,52 @@ def test_classify_send():
     assert classify_send(0, 0) == "truthful"
 
 
-def test_round_points_bonus_triggers_at_threshold():
-    cfg = KCConfig()  # R=10, B=10, T=3
-    points, n, bonus = round_points({0: True, 1: True, 2: True, 3: False}, cfg)
-    assert (n, bonus) == (3, True)
-    # solvers: 10 + 10; the non-solver still gets the bonus: 0 + 10
-    assert points == {0: 20, 1: 20, 2: 20, 3: 10}
+# --- Split-pot scoring: one round, defaults pot P=40, bonus B=10, T=3, alpha 0 ---
+#
+#   solvers | pot share            | bonus? | solver gets  | non-solver gets
+#   4       | 40 / 4 = 10          | yes    | 10 + 10 = 20 | -
+#   3       | 40 / 3 = 13.33       | yes    | 13.33 + 10 = 23.33 | 0 + 10 = 10
+#   2       | 40 / 2 = 20          | no     | 20           | 0
+#   1       | 40 / 1 = 40          | no     | 40           | 0
+#   0       | nobody gets the pot  | no     | -            | 0
+# With alpha = 0 the score U equals points P.
 
-
-def test_round_points_below_threshold_no_bonus():
+@pytest.mark.parametrize("solved, points, n, bonus", [
+    ({0: True, 1: True, 2: True, 3: True}, {0: 20, 1: 20, 2: 20, 3: 20}, 4, True),
+    ({0: True, 1: True, 2: True, 3: False}, {0: 23.33, 1: 23.33, 2: 23.33, 3: 10}, 3, True),
+    ({0: True, 1: True, 2: False, 3: False}, {0: 20, 1: 20, 2: 0, 3: 0}, 2, False),
+    ({0: True, 1: False, 2: False, 3: False}, {0: 40, 1: 0, 2: 0, 3: 0}, 1, False),
+    ({0: False, 1: False, 2: False, 3: False}, {0: 0, 1: 0, 2: 0, 3: 0}, 0, False),
+])
+def test_split_pot_table_alpha_zero(solved, points, n, bonus):
     cfg = KCConfig()
-    points, n, bonus = round_points({0: True, 1: True, 2: False, 3: False}, cfg)
-    assert (n, bonus) == (2, False)
-    assert points == {0: 10, 1: 10, 2: 0, 3: 0}
+    assert cfg.alpha == 0 and (cfg.pot_size, cfg.group_bonus, cfg.bonus_threshold) == (40, 10, 3)
+    got, n_solvers, got_bonus = round_points(solved, cfg)
+    assert (n_solvers, got_bonus) == (n, bonus)
+    assert got == points  # exact: points are rounded to 2 decimals at the source
+    assert utilities(got, cfg.alpha) == pytest.approx(points)  # alpha 0: U == P
+
+
+def test_pot_share_rounding():
+    assert pot_share(40, 3) == 13.33 and pot_share(40, 0) == 0.0 and pot_share(10, 3) == 3.33
+    assert pot_share(50, 3) == 16.67
 
 
 def test_round_points_custom_values():
-    cfg = KCConfig(n_agents=3, reward_correct=7, group_bonus=2, bonus_threshold=1)
+    # P=30, B=2, T=1, 3 agents, 1 solver: share 30, bonus (1 >= 1) -> 32 / 2 / 2.
+    cfg = KCConfig(n_agents=3, pot_size=30, group_bonus=2, bonus_threshold=1)
     points, n, bonus = round_points({0: False, 1: True, 2: False}, cfg)
     assert (n, bonus) == (1, True)
-    assert points == {0: 2, 1: 9, 2: 2}
+    assert points == {0: 2, 1: 32, 2: 2}
+
+
+def test_lying_to_one_agent_pays_at_alpha_zero():
+    """SPEC §4 "why lying pays": with everyone else solving, knocking out one
+    agent raises your own points from 20 to 23.33 and keeps the bonus."""
+    cfg = KCConfig()
+    all_solve, _, _ = round_points({0: True, 1: True, 2: True, 3: True}, cfg)
+    one_out, _, _ = round_points({0: True, 1: True, 2: True, 3: False}, cfg)
+    assert one_out[0] - all_solve[0] == pytest.approx(3.33)
 
 
 def test_utilities_hand_checked():

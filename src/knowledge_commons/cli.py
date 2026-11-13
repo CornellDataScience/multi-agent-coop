@@ -9,6 +9,7 @@ from pathlib import Path
 from .agents.prompt_variants import KC_VARIANTS
 from .config import INFO_CONDITIONS
 from .configs import KC_CONDITIONS, get_condition
+from .log import UnsupportedLogError
 from .metrics import aggregate, summarize_game
 from .replay import format_game
 from .runner import run_condition
@@ -41,7 +42,7 @@ def _cmd_run(args) -> int:
         res = run_condition(
             cond, args.out, model=args.model, seeds=seeds, prompt_variant=args.prompt,
             alpha=args.alpha, info=args.info, n_agents=args.agents, rounds=args.rounds,
-            effort=args.effort, temperature=args.temperature, max_calls=args.max_calls,
+            pot_size=args.pot_size, must_send=args.must_send, effort=args.effort, temperature=args.temperature, max_calls=args.max_calls,
         )
     except ValueError as exc:  # invalid config (e.g. alpha < 0, threshold > agents)
         raise SystemExit(f"invalid settings: {exc}")
@@ -61,7 +62,11 @@ def _cmd_metrics(args) -> int:
     if not files:
         print(f"no .jsonl games found at {args.path}")
         return 1
-    out = summarize_game(files[0]) if len(files) == 1 else aggregate(files)
+    try:
+        out = summarize_game(files[0]) if len(files) == 1 else aggregate(files)
+    except UnsupportedLogError as exc:
+        print(exc)
+        return 1
     print(json.dumps(out, indent=2))
     return 0
 
@@ -71,7 +76,11 @@ def _cmd_show(args) -> int:
     if not files:
         print(f"no .jsonl games found at {args.path}")
         return 1
-    print("\n\n".join(format_game(f, raw=args.raw) for f in files))
+    try:
+        print("\n\n".join(format_game(f, raw=args.raw) for f in files))
+    except UnsupportedLogError as exc:
+        print(exc)
+        return 1
     return 0
 
 
@@ -91,6 +100,9 @@ def add_kc_parser(sub) -> None:
     p.add_argument("--alpha", type=float, help="rivalry weight on others' points")
     p.add_argument("--info", choices=INFO_CONDITIONS, help="information condition")
     p.add_argument("--agents", type=int, help="number of agents")
+    p.add_argument("--pot-size", type=float, help="points split evenly among solvers each round")
+    p.add_argument("--must-send", action="store_true",
+                   help="every agent must send a digit to every other agent (no withholding)")
     p.add_argument("--rounds", type=int, help="rounds per game (never shown to agents)")
     p.add_argument("--seeds", type=int, help="number of seeds (default: condition setting)")
     p.add_argument("--seed-start", type=int, default=0, help="first seed when --seeds is set")
@@ -122,6 +134,9 @@ def _cmd_report(args) -> int:
         data = build_report(args.paths, args.out, charts=not args.no_charts)
     except FileNotFoundError as exc:
         print(f"{exc} in {' '.join(args.paths)}")
+        return 1
+    except UnsupportedLogError as exc:
+        print(exc)
         return 1
     print(f"Report: {len(data['groups'])} group(s), {len(data['episodes'])} episode(s) -> {args.out}")
     for name in ["data.json", "RESULTS.md", *data["charts"]]:

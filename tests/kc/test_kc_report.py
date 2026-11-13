@@ -19,6 +19,7 @@ def log_dirs(tmp_path_factory):
     llm = get_condition("kc_llm")
     for alpha in (0.0, 1.0):
         run_condition(llm, root / "sweep", model="mock", seeds=[0, 1], alpha=alpha, rounds=4)
+    run_condition(llm, root / "sweep", model="mock", seeds=[0, 1], alpha=0.0, rounds=4, must_send=True)
     for info in ("no_memory", "public_reputation"):
         run_condition(llm, root / "info", model="mock", seeds=[0], alpha=1.0, info=info, rounds=4)
     run_condition(get_condition("kc_reciprocators_vs_liar"), root / "e0", seeds=[0, 1], rounds=4)
@@ -30,12 +31,17 @@ def test_data_json_has_documented_keys(log_dirs, tmp_path):
     on_disk = json.loads((tmp_path / "data.json").read_text())
     assert on_disk == json.loads(json.dumps(data))
     assert set(on_disk) >= {"generated_at", "groups", "episodes", "cost"}
-    keys = {(g["condition"], g["model"], g["alpha"], g["info_condition"]) for g in on_disk["groups"]}
+    keys = {(g["condition"], g["model"], g["alpha"], g["info_condition"], g["allow_withhold"])
+            for g in on_disk["groups"]}
+    # Must-send games at alpha 0 form their own group, never merged with withholding ones.
     assert keys == {
-        ("kc_llm", "mock", 0.0, "private_memory"), ("kc_llm", "mock", 1.0, "private_memory"),
-        ("kc_llm", "mock", 1.0, "no_memory"), ("kc_llm", "mock", 1.0, "public_reputation"),
-        ("kc_reciprocators_vs_liar", "scripted", 0.5, "private_memory"),
+        ("kc_llm", "mock", 0.0, "private_memory", True), ("kc_llm", "mock", 0.0, "private_memory", False),
+        ("kc_llm", "mock", 1.0, "private_memory", True),
+        ("kc_llm", "mock", 1.0, "no_memory", True), ("kc_llm", "mock", 1.0, "public_reputation", True),
+        ("kc_reciprocators_vs_liar", "scripted", 0.0, "private_memory", True),
     }
+    must = next(g for g in on_disk["groups"] if not g["allow_withhold"])
+    assert must["metrics"]["withheld_share"]["mean"] == 0.0 and must["pot_size"] == 40
     for g in on_disk["groups"]:
         assert g["n_games"] == (1 if g["info_condition"] != "private_memory" else 2)
         flow = g["metrics"]["information_flow"]
@@ -94,5 +100,5 @@ def test_cli_report(log_dirs, tmp_path, capsys):
     out = tmp_path / "report"
     assert main(["kc", "report", *map(str, log_dirs), "--out", str(out), "--no-charts"]) == 0
     assert (out / "data.json").exists() and (out / "RESULTS.md").exists()
-    assert "5 group(s)" in capsys.readouterr().out
+    assert "6 group(s)" in capsys.readouterr().out
     assert main(["kc", "report", str(tmp_path / "nothing"), "--out", str(out)]) == 1

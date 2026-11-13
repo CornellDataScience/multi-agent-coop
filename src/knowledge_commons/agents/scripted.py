@@ -61,10 +61,13 @@ class HonestAgent(ScriptedAgent):
 
 
 class HoarderAgent(ScriptedAgent):
+    """Sends nothing; under must-send, where nothing is not an option, it
+    sends its true digit."""
+
     policy = "hoarder"
 
     def _send_to(self, j, obs):
-        return None
+        return None if obs.allow_withhold else obs.my_digit
 
 
 class LiarAgent(ScriptedAgent):

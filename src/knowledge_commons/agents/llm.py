@@ -80,9 +80,10 @@ class KCLLMAgent(KCAgent):
 
     def send_messages(self, obs: KCObservation) -> MessageAction:
         sends, status, raw, served_by, usage = self._ask(
-            obs, lambda t: parse_message_output(t, obs.agent_id, obs.n_agents))
-        if sends is None:  # SPEC §6 fallback: send nothing to anyone
-            sends = {j: None for j in range(obs.n_agents) if j != obs.agent_id}
+            obs, lambda t: parse_message_output(t, obs.agent_id, obs.n_agents, obs.allow_withhold))
+        if sends is None:  # SPEC §6 fallback: nothing to anyone, or the true digit under must-send
+            fill = None if obs.allow_withhold else obs.my_digit
+            sends = {j: fill for j in range(obs.n_agents) if j != obs.agent_id}
             reason = None
         else:
             reason = extract_reason(raw, "messages")

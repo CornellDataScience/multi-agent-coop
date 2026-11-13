@@ -21,8 +21,17 @@ from src.knowledge_commons.scoring import (QUIZ_OTHERS_GAIN, QUIZ_OWN_GAIN, comp
                                            grade_comprehension)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "hand_game.jsonl"
-PASS = '{"q1_direction": "down", "q1_amount": 10, "q2_amount": 10}'  # correct at alpha 0.5
-WRONG = '{"q1_direction": "up", "q1_amount": 10, "q2_amount": 10}'
+# Correct at alpha 0.5, pot 40, 4 agents: (a) down 0.5*20 = 10, (b) 10,
+# (c) 40/4 = 10 each if all 4 solve, 40/3 = 13.33 each if exactly 3 solve.
+PASS = ('{"q1_direction": "down", "q1_amount": 10, "q2_amount": 10, '
+        '"q3_all_amount": 10, "q3_fewer_amount": 13.33}')
+WRONG = ('{"q1_direction": "up", "q1_amount": 10, "q2_amount": 10, '
+         '"q3_all_amount": 10, "q3_fewer_amount": 13.33}')
+
+
+def _ans(d="down", q1=10, q2=10, q3a=10, q3b=13.33):
+    return {"q1_direction": d, "q1_amount": q1, "q2_amount": q2, "q3_all_amount": q3a,
+            "q3_fewer_amount": q3b}
 
 
 def _r(text, usage=None, refused=False):
@@ -60,35 +69,47 @@ def _game_responder(quiz_reply=PASS):
 
 # --- Grading -----------------------------------------------------------------
 
-def test_expected_answers_follow_alpha():
-    assert comprehension_expected(0.5) == {"q1_direction": "down", "q1_change": -10.0, "q2_change": 10.0}
-    assert comprehension_expected(1.5)["q1_change"] == pytest.approx(-30.0)
-    assert comprehension_expected(0.0) == {"q1_direction": "same", "q1_change": 0.0, "q2_change": 10.0}
+def test_expected_answers_follow_alpha_and_pot():
+    assert comprehension_expected(0.5, 40, 4) == {
+        "q1_direction": "down", "q1_change": -10.0, "q2_change": 10.0,
+        "q3_all_share": 10.0, "q3_fewer_share": 13.33}
+    assert comprehension_expected(1.5, 40, 4)["q1_change"] == pytest.approx(-30.0)
+    assert comprehension_expected(0.0, 40, 4)["q1_direction"] == "same"
+    # Pot 30, 3 agents: 30/3 = 10 all solve, 30/2 = 15 with one fewer.
+    exp = comprehension_expected(0.0, 30, 3)
+    assert (exp["q3_all_share"], exp["q3_fewer_share"]) == (10.0, 15.0)
     assert (QUIZ_OTHERS_GAIN, QUIZ_OWN_GAIN) == (20, 10)
 
 
 @pytest.mark.parametrize("answers, alpha, ok", [
-    ({"q1_direction": "down", "q1_amount": 10, "q2_amount": 10}, 0.5, True),
-    ({"q1_direction": "down", "q1_amount": -10, "q2_amount": 10}, 0.5, True),  # signed amount
-    ({"q1_direction": "down", "q1_amount": 30, "q2_amount": 10}, 1.5, True),
-    ({"q1_direction": "same", "q1_amount": 0, "q2_amount": 10}, 0.0, True),
-    ({"q1_direction": "up", "q1_amount": 10, "q2_amount": 10}, 0.5, False),
-    ({"q1_direction": "down", "q1_amount": 20, "q2_amount": 10}, 0.5, False),
-    ({"q1_direction": "down", "q1_amount": 10, "q2_amount": -10}, 0.5, False),
-    ({"q1_direction": "down", "q1_amount": 0, "q2_amount": 10}, 0.0, False),
+    (_ans(), 0.5, True),
+    (_ans(q1=-10), 0.5, True),  # signed amount
+    (_ans(q1=30), 1.5, True),
+    (_ans(d="same", q1=0), 0.0, True),
+    (_ans(q3b=13.333), 0.5, True),  # 40/3 at more precision still matches to 2 decimals
+    (_ans(d="up"), 0.5, False),
+    (_ans(q1=20), 0.5, False),
+    (_ans(q2=-10), 0.5, False),
+    (_ans(d="same", q1=0), 0.5, False),
+    (_ans(d="down", q1=0), 0.0, False),
+    # (c) graded too: both shares must be right.
+    (_ans(q3a=20), 0.5, False),       # whole pot + bonus instead of the pot share
+    (_ans(q3b=10), 0.5, False),       # same share for 3 as for 4
+    (_ans(q3b=23.33), 0.5, False),    # share plus bonus, not pot points
+    (_ans(q3b=13.3), 0.5, False),     # off by more than 2-decimal rounding
     (None, 0.5, False),
 ])
 def test_grading(answers, alpha, ok):
-    assert grade_comprehension(answers, alpha) is ok
+    assert grade_comprehension(answers, alpha, 40, 4) is ok
 
 
 # --- Parsing -----------------------------------------------------------------
 
 def test_parse_valid_and_lenient_forms():
-    assert parse_comprehension_output(PASS) == {"q1_direction": "down", "q1_amount": 10.0, "q2_amount": 10.0}
-    wrapped = 'Sure:\n```json\n{"q1_direction": " Down ", "q1_amount": "-10", "q2_amount": "+10"}\n```'
-    assert parse_comprehension_output(wrapped) == {"q1_direction": "down", "q1_amount": -10.0,
-                                                   "q2_amount": 10.0}
+    assert parse_comprehension_output(PASS) == _ans(q1=10.0, q2=10.0, q3a=10.0)
+    wrapped = ('Sure:\n```json\n{"q1_direction": " Down ", "q1_amount": "-10", "q2_amount": "+10", '
+               '"q3_all_amount": "10", "q3_fewer_amount": 13.33}\n```')
+    assert parse_comprehension_output(wrapped) == _ans(q1=-10.0)
 
 
 @pytest.mark.parametrize("text", [
@@ -98,6 +119,11 @@ def test_parse_valid_and_lenient_forms():
     '{"q1_direction": "down", "q1_amount": "ten", "q2_amount": 10}',
     '{"q1_direction": "down", "q1_amount": true, "q2_amount": 10}',
     '{"q1_direction": "down", "q1_amount": NaN, "q2_amount": 10}',
+    # (c) fields are required.
+    '{"q1_direction": "down", "q1_amount": 10, "q2_amount": 10}',
+    '{"q1_direction": "down", "q1_amount": 10, "q2_amount": 10, "q3_all_amount": 10}',
+    '{"q1_direction": "down", "q1_amount": 10, "q2_amount": 10, "q3_all_amount": 10, '
+    '"q3_fewer_amount": "a third"}',
 ])
 def test_parse_invalid(text):
     with pytest.raises(ParseError):
@@ -171,10 +197,11 @@ def test_quiz_runs_once_before_round_one_and_is_logged(tmp_path):
     assert set(quiz) == {0, 1}  # scripted agents 2 and 3 skipped
     rec = quiz[0]
     assert rec["raw_output"] == PASS and rec["parse_status"] == "ok" and rec["passed"] is True
-    assert rec["answers"] == {"q1_direction": "down", "q1_amount": 10.0, "q2_amount": 10.0}
-    assert rec["expected"] == {"q1_direction": "down", "q1_change": -10.0, "q2_change": 10.0}
-    assert rec["observation"] == {"agent_id": 0, "n_agents": 4, "reward_correct": 10, "group_bonus": 10,
-                                  "bonus_threshold": 3, "alpha": 0.5}
+    assert rec["answers"] == _ans(q1=10.0, q2=10.0, q3a=10.0)
+    assert rec["expected"] == {"q1_direction": "down", "q1_change": -10.0, "q2_change": 10.0,
+                               "q3_all_share": 10.0, "q3_fewer_share": 13.33}
+    assert rec["observation"] == {"agent_id": 0, "n_agents": 4, "pot_size": 40, "group_bonus": 10,
+                                  "bonus_threshold": 3, "alpha": 0.5, "allow_withhold": True}
 
 
 def test_quiz_graded_against_alpha():
@@ -226,8 +253,9 @@ def test_pass_rate_metrics_and_show(tmp_path):
     assert agg["game"]["comprehension_pass_rate"]["mean"] == pytest.approx(1 / 3)
 
     out = format_game(path)
-    assert "quiz agent 0: PASS [ok] | answered down 10, 10 | expected down 10, 10" in out
-    assert "quiz agent 1: FAIL [ok] | answered up 10, 10" in out
+    assert ("quiz agent 0: PASS [ok] | answered down 10, 10, 10/13.33 | "
+            "expected down 10, 10, 10/13.33") in out
+    assert "quiz agent 1: FAIL [ok] | answered up 10, 10, 10/13.33" in out
     assert "quiz agent 2: FAIL [failed] | answered no valid answer" in out
     assert "quiz agent 3" not in out
     assert "raw quiz: junk" in format_game(path, raw=True)

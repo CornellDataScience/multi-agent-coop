@@ -19,34 +19,99 @@ def _lineup(*names, start=0):
 # --- Golden games (PHASES.md, Phase 1) --------------------------------------
 
 def test_golden_game_hoarder_wins_without_bonus():
-    cfg = KCConfig(alpha=0.5, reward_correct=10, group_bonus=10, bonus_threshold=3, max_rounds=2)
+    cfg = KCConfig(alpha=0.5, pot_size=40, group_bonus=10, bonus_threshold=3, max_rounds=2)
     agents = _lineup("honest", "honest", "honest", "hoarder")
     log = KCEnvironment(cfg, agents, "golden1", codes=[(1, 2, 3, 4), (5, 6, 7, 8)]).run()
 
     # Agents 0-2 never get digit 3 and fill it with 0, so they fail; the
-    # hoarder hears everyone's truth and solves both rounds; 1 solver < T=3.
+    # hoarder hears everyone's truth and solves both rounds alone: the whole
+    # pot (40) each round, and 1 solver < T=3 so no bonus.
     for r in log.rounds:
         assert r.solved == {0: False, 1: False, 2: False, 3: True}
         assert (r.n_solvers, r.bonus) == (1, False)
-        assert r.points == {0: 0, 1: 0, 2: 0, 3: 10}
+        assert r.points == {0: 0, 1: 0, 2: 0, 3: 40}
     assert log.rounds[0].guess_actions[0].guess == (1, 2, 3, 0)
     assert log.rounds[1].guess_actions[3].guess == (5, 6, 7, 8)
 
-    assert log.totals() == {0: 0, 1: 0, 2: 0, 3: 20}
-    u = log.utilities()
-    assert u[3] == pytest.approx(20.0)
-    for i in range(3):
-        assert u[i] == pytest.approx(0 - 0.5 * 20 / 3)  # -3.333...
+    assert log.totals() == {0: 0, 1: 0, 2: 0, 3: 80}
+    # U_3 = 80 - 0.5 * 0 = 80; U_i = 0 - 0.5 * mean(0, 0, 80) = -13.333 -> -13.33 in the log.
+    assert log.utilities() == {0: -13.33, 1: -13.33, 2: -13.33, 3: 80.0}
 
 
-def test_golden_game_hoarder_digit_zero_everyone_solves():
-    cfg = KCConfig(alpha=0.5, max_rounds=1)
-    agents = _lineup("honest", "honest", "honest", "hoarder")
-    log = KCEnvironment(cfg, agents, "golden2", codes=[(1, 2, 3, 0)]).run()
+# One-round golden games at alpha 0 (U == P), one per row of SPEC §4's table.
+
+def test_golden_four_solve_twenty_each():
+    # Hoarder's digit is 0, which is everyone's default -> all 4 solve.
+    # Pot 40 / 4 = 10, plus bonus 10 -> 20 each.
+    log = KCEnvironment(KCConfig(max_rounds=1), _lineup("honest", "honest", "honest", "hoarder"),
+                        "g4", codes=[(1, 2, 3, 0)]).run()
     r = log.rounds[0]
-    assert all(r.solved.values())
     assert (r.n_solvers, r.bonus) == (4, True)
     assert r.points == {0: 20, 1: 20, 2: 20, 3: 20}
+    assert log.utilities() == {0: 20, 1: 20, 2: 20, 3: 20}
+
+
+def test_golden_three_solve():
+    # Excluder 3 shuts out agent 0 (default target (3 + 1) % 4 = 0). Agent 0
+    # guesses 1 2 3 0 and fails; 1, 2, 3 solve. Pot 40 / 3 = 13.33, bonus
+    # paid (3 >= T) -> solvers 23.33, agent 0 gets the bonus only: 10.
+    log = KCEnvironment(KCConfig(max_rounds=1), _lineup("honest", "honest", "honest", "excluder"),
+                        "g3", codes=[(1, 2, 3, 4)]).run()
+    r = log.rounds[0]
+    assert r.solved == {0: False, 1: True, 2: True, 3: True} and r.bonus
+    assert r.points == {0: 10, 1: 23.33, 2: 23.33, 3: 23.33}
+
+
+def test_golden_two_solve_no_bonus():
+    # Agent 2 hides its digit from 3, agent 3 hides its digit from 2; both
+    # tell 0 and 1. Only 0 and 1 solve: pot 40 / 2 = 20 each, 2 < T -> no
+    # bonus, 2 and 3 get 0.
+    agents = [make_scripted("honest", 0), make_scripted("honest", 1),
+              make_scripted("excluder", 2, target=3), make_scripted("excluder", 3, target=2)]
+    log = KCEnvironment(KCConfig(max_rounds=1), agents, "g2", codes=[(1, 2, 3, 4)]).run()
+    r = log.rounds[0]
+    assert (r.n_solvers, r.bonus) == (2, False)
+    assert r.points == {0: 20, 1: 20, 2: 0, 3: 0}
+
+
+def test_golden_one_solver_takes_whole_pot():
+    # Liar 3 sends 5 (4 + 1) to everyone; it hears the truth from 0-2 and
+    # solves alone: 40, no bonus. Everyone else guesses 1 2 3 5 and gets 0.
+    log = KCEnvironment(KCConfig(max_rounds=1), _lineup("honest", "honest", "honest", "liar"),
+                        "g1", codes=[(1, 2, 3, 4)]).run()
+    r = log.rounds[0]
+    assert r.guess_actions[0].guess == (1, 2, 3, 5)
+    assert r.points == {0: 0, 1: 0, 2: 0, 3: 40}
+
+
+# --- Must-send (allow_withhold=False) ----------------------------------------
+
+def test_must_send_hoarder_sends_true_digit_and_everyone_solves():
+    # Same lineup and codes as golden1, but nothing is not an option: the
+    # hoarder sends its true digit, so all 4 solve both rounds -> 20 each round.
+    cfg = KCConfig(max_rounds=2, allow_withhold=False)
+    log = KCEnvironment(cfg, _lineup("honest", "honest", "honest", "hoarder"), "ms",
+                        codes=[(1, 2, 3, 4), (5, 6, 7, 8)]).run()
+    for r, code in zip(log.rounds, [(1, 2, 3, 4), (5, 6, 7, 8)]):
+        assert r.message_actions[3].sends == {0: code[3], 1: code[3], 2: code[3]}
+        assert r.points == {0: 20, 1: 20, 2: 20, 3: 20}
+    assert log.totals() == {0: 40, 1: 40, 2: 40, 3: 40}
+
+
+def test_must_send_sanitizer_fills_true_digit():
+    # Scripted "nothing" (excluder, reciprocator after a lie) and missing or
+    # invalid sends become the sender's true digit, never None.
+    cfg = KCConfig(max_rounds=2, allow_withhold=False)
+    log = KCEnvironment(cfg, [SloppyAgent(0)] + _lineup("excluder", "reciprocator", "liar", start=1),
+                        "ms2", codes=[(4, 5, 6, 7), (1, 2, 3, 9)]).run()
+    for r in log.rounds:
+        for i, act in r.message_actions.items():
+            assert None not in act.sends.values()
+    r1 = log.rounds[0]
+    assert r1.message_actions[0].sends == {1: 4, 2: 4, 3: 4}  # skipped 2 and bad 12 -> true 4
+    assert r1.message_actions[1].sends[2] == 5  # excluder's target gets the true digit
+    # Round 2: the reciprocator would withhold from the liar; under must-send it sends truth.
+    assert log.rounds[1].message_actions[2].sends[3] == 3
 
 
 # --- Gate: full 8-round all-honest game -------------------------------------
@@ -200,7 +265,7 @@ def test_log_round_trip(tmp_path):
 
     game = load_game(path)
     meta, rounds, end = game["meta"], game["rounds"], game["end"]
-    assert meta["game"] == "knowledge_commons" and meta["schema_version"] == 1
+    assert meta["game"] == "knowledge_commons" and meta["schema_version"] == 2
     assert meta["config"] == cfg.to_dict() and meta["seed"] == 2 and meta["condition"] == "rt"
     assert meta["run_parameters"] == {"note": "x"}
     assert [a["policy"] for a in meta["agents"]] == ["honest", "liar", "grudger", "excluder"]
@@ -223,14 +288,15 @@ def test_logged_points_and_utilities_match_scoring(tmp_path):
     cfg = KCConfig(alpha=1.0, seed=9)
     log = KCEnvironment(cfg, _lineup("liar", "excluder", "honest", "reciprocator"), "s").run()
     game = load_game(log.write_jsonl(tmp_path / "s.jsonl"))
-    totals = {i: 0 for i in range(4)}
+    totals = {i: 0.0 for i in range(4)}
     for rec in game["rounds"]:
         pts, n, bonus = round_points(rec["solved"], cfg)
         assert rec["points"] == pts and rec["n_solvers"] == n and rec["bonus"] == bonus
         for i, p in pts.items():
             totals[i] += p
-    assert game["end"]["totals"] == totals
-    assert game["end"]["utilities"] == pytest.approx(utilities(totals, 1.0))
+    assert game["end"]["totals"] == pytest.approx(totals)
+    # Logged utilities are rounded to 2 decimals.
+    assert game["end"]["utilities"] == pytest.approx(utilities(totals, 1.0), abs=0.005)
 
 
 # --- Sanitizing edge cases ---------------------------------------------------

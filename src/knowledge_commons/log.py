@@ -11,7 +11,13 @@ from .events import RoundRecord
 from .observation import KCObservation
 from .scoring import utilities
 
-SCHEMA_VERSION = 1
+# 2: split-pot scoring (pot_size, float points), allow_withhold. Version 1
+# logs used per-solver scoring and are rejected by ``load_game``.
+SCHEMA_VERSION = 2
+
+
+class UnsupportedLogError(ValueError):
+    """Log written with an older, incompatible scoring rule."""
 
 
 def _str_keys(obj):
@@ -65,15 +71,16 @@ class KCGameLog:
         self.message_obs.append(message_obs)
         self.guess_obs.append(guess_obs)
 
-    def totals(self) -> dict[int, int]:
-        totals = {i: 0 for i in range(self.config.n_agents)}
+    def totals(self) -> dict[int, float]:
+        totals = {i: 0.0 for i in range(self.config.n_agents)}
         for r in self.rounds:
             for i, p in r.points.items():
                 totals[i] += p
-        return totals
+        return {i: round(t, 2) for i, t in totals.items()}
 
     def utilities(self) -> dict[int, float]:
-        return utilities(self.totals(), self.config.alpha)
+        """Rounded to 2 decimals, like every point value in the log."""
+        return {i: round(u, 2) for i, u in utilities(self.totals(), self.config.alpha).items()}
 
     def records(self) -> list[dict]:
         out = [{
@@ -139,6 +146,11 @@ def load_game(path: str | Path) -> dict:
             kind = rec.get("record")
             if kind == "meta":
                 meta = rec
+                version = meta.get("schema_version", 1)
+                if version < SCHEMA_VERSION:
+                    raise UnsupportedLogError(
+                        f"{path}: schema_version {version} uses the old per-solver scoring; "
+                        f"re-run the game (this code reads schema_version {SCHEMA_VERSION})")
             elif kind == "comprehension":
                 comprehension[rec["agent"]] = rec
             elif kind == "round":

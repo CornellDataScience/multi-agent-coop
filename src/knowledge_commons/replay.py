@@ -26,19 +26,21 @@ def format_game(path: str | Path, raw: bool = False) -> str:
     lines = [
         f"=== {Path(path).name}",
         f"condition {meta['condition']} | seed {meta['seed']} | alpha {cfg['alpha']} | "
-        f"info {cfg['info_condition']} | model {s['model']}",
+        f"info {cfg['info_condition']} | pot {cfg['pot_size']:g} | "
+        f"{'withholding allowed' if cfg['allow_withhold'] else 'must send'} | model {s['model']}",
         "agents: " + ", ".join(
             f"{i}={agents.get(i, {}).get('policy') or agents.get(i, {}).get('model') or '?'}"
             for i in range(cfg["n_agents"])),
     ]
     for i, q in sorted((game.get("comprehension") or {}).items()):
         a = q.get("answers")
-        got = (f"{a['q1_direction']} {a['q1_amount']:g}, {a['q2_amount']:g}" if a
-               else "no valid answer")
+        got = (f"{a['q1_direction']} {a['q1_amount']:g}, {a['q2_amount']:g}, "
+               f"{a['q3_all_amount']:g}/{a['q3_fewer_amount']:g}" if a else "no valid answer")
         exp = q["expected"]
         lines.append(f"  quiz agent {i}: {'PASS' if q['passed'] else 'FAIL'} [{q['parse_status']}]"
                      f" | answered {got} | expected {exp['q1_direction']} "
-                     f"{abs(exp['q1_change']):g}, {exp['q2_change']:g}")
+                     f"{abs(exp['q1_change']):g}, {exp['q2_change']:g}, "
+                     f"{exp['q3_all_share']:g}/{exp['q3_fewer_share']:g}")
         if raw and q.get("raw_output") is not None:
             lines.append(f"    raw quiz: {q['raw_output'].strip()}")
     for r in rounds:
@@ -52,7 +54,7 @@ def format_game(path: str | Path, raw: bool = False) -> str:
             conf = r.get("confidence", {}).get(i)
             lines.append(
                 f"    agent {i} sends [{', '.join(cells)}] | guess {_digits(r['guesses'][i])}"
-                f" {'OK' if r['solved'][i] else 'x '} | +{r['points'][i]}"
+                f" {'OK' if r['solved'][i] else 'x '} | +{r['points'][i]:g}"
                 + (f" | conf {conf:.2f}" if conf is not None else "")
             )
             for phase in ("message", "guess"):
@@ -67,7 +69,7 @@ def format_game(path: str | Path, raw: bool = False) -> str:
                                      f"{act['raw_output'].strip()}")
     end = game["end"] or {}
     if end:
-        lines.append("  totals: " + ", ".join(f"{i}={p}" for i, p in sorted(end["totals"].items())))
+        lines.append("  totals: " + ", ".join(f"{i}={p:g}" for i, p in sorted(end["totals"].items())))
         lines.append("  scores: " + ", ".join(f"{i}={u:.2f}" for i, u in sorted(end["utilities"].items())))
     g = s["game"]
     lines.append(f"  information flow {g['information_flow']:.2f} | bonus rate {g['bonus_rate']:.2f}"

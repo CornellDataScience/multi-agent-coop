@@ -34,15 +34,15 @@ def test_golden_game_metrics(tmp_path):
     assert g["first_half_flow"] == g["second_half_flow"] == pytest.approx(0.75)
     assert g["bonus_rate"] == 0.0
     assert g["mean_n_solvers"] == 1.0                 # only the hoarder solves
-    assert g["welfare"] == 20                         # 0 + 0 + 0 + 20
-    assert g["efficiency"] == pytest.approx(20 / 160)  # 4 * 20 * 2 rounds = 160
+    assert g["welfare"] == 80                         # hoarder takes the whole pot: 40 x 2 rounds
+    assert g["efficiency"] == pytest.approx(80 / 160)  # max (40 + 4 * 10) * 2 rounds = 160
     assert a[3]["withhold_rate"] == 1.0 and a[3]["truthful_rate"] == 0.0
     for i in range(3):
         assert a[i]["truthful_rate"] == 1.0
         assert a[i]["solve_rate"] == 0.0 and a[i]["P"] == 0
-        assert a[i]["U"] == pytest.approx(-20 / 6)    # 0 - 0.5 * 20/3
+        assert a[i]["U"] == pytest.approx(-40 / 3)    # 0 - 0.5 * 80/3
         assert a[i]["rank"] == 2
-    assert a[3]["solve_rate"] == 1.0 and a[3]["P"] == 20 and a[3]["U"] == 20.0 and a[3]["rank"] == 1
+    assert a[3]["solve_rate"] == 1.0 and a[3]["P"] == 80 and a[3]["U"] == 80.0 and a[3]["rank"] == 1
     assert a[3]["calibration"] is None
     # Scripted actions make no model calls.
     assert g["model_actions"] == 0 and g["calls"] == 0
@@ -128,11 +128,12 @@ def test_uptake_splits_by_prior_liars(recip_path):
 def test_solves_points_and_rank(recip_path):
     m = summarize_game(recip_path)
     a, g = m["agents"], m["game"]
-    # Only the liar solves, in R1 (everyone told it the truth). n_solvers 1 < 3.
-    assert a[1]["P"] == 10 and a[1]["solve_rate"] == 0.25
+    # Only the liar solves, in R1 (everyone told it the truth): sole solver
+    # takes the whole pot, 40. n_solvers 1 < 3, so no bonus.
+    assert a[1]["P"] == 40 and a[1]["solve_rate"] == 0.25
     assert g["bonus_rate"] == 0.0 and g["mean_n_solvers"] == 0.25
-    assert a[1]["U"] == 10.0 and a[1]["rank"] == 1
-    assert a[0]["U"] == pytest.approx(0 - 0.5 * 10 / 3)
+    assert a[1]["U"] == 40.0 and a[1]["rank"] == 1
+    assert a[0]["U"] == pytest.approx(0 - 0.5 * 40 / 3)
 
 
 # --- Forgiveness with a longer lag, plus calibration and reliability ---------
@@ -216,11 +217,12 @@ def test_replay_shows_rounds_and_marks_lies(recip_path):
 
 # --- Invariant 7: metrics from a hand-written JSONL, no live environment -----
 #
-# fixtures/hand_game.jsonl: 3 agents, 2 rounds, R=10, B=10, T=2, alpha=0.5.
+# fixtures/hand_game.jsonl: 3 agents, 2 rounds, pot 30, B=10, T=2, alpha=0.5.
 #   R1 code 1 2 3.  0->1: 1 T, 0->2: 1 T | 1->0: 2 T, 1->2: -- W | 2->0: 5 L, 2->1: 3 T
-#      guesses 0:[1,2,5] x  1:[1,2,3] ok  2:[1,0,3] x  -> 1 solver, no bonus, pts 0/10/0
+#      guesses 0:[1,2,5] x  1:[1,2,3] ok  2:[1,0,3] x  -> 1 solver takes pot 30, no bonus: 0/30/0
 #   R2 code 4 5 6.  0->1: 4 T, 0->2: -- W | 1->0: 5 T, 1->2: 5 T | 2->0: 6 T, 2->1: 6 T
-#      guesses 0:[4,5,6] ok 1:[4,5,6] ok 2:[0,5,6] x  -> 2 solvers, bonus, pts 20/20/10
+#      guesses 0:[4,5,6] ok 1:[4,5,6] ok 2:[0,5,6] x  -> 2 solvers split 30 (15 each),
+#      2 >= T so bonus 10 for all: 25/25/10
 #   Agent 0 is the "LLM": statuses ok, retry_ok, ok, fallback; each action 100 in / 10 out.
 
 FIXTURE = Path(__file__).parent / "fixtures" / "hand_game.jsonl"
@@ -242,16 +244,16 @@ def test_metrics_on_hand_written_fixture(monkeypatch):
     assert g["flow_by_round"] == pytest.approx([4 / 6, 5 / 6])
     assert g["first_half_flow"] == pytest.approx(4 / 6) and g["second_half_flow"] == pytest.approx(5 / 6)
     assert g["bonus_rate"] == 0.5 and g["mean_n_solvers"] == 1.5
-    # Welfare 0+10+0 + 20+20+10 = 60; max = 3 agents * 20 * 2 rounds = 120.
-    assert g["welfare"] == 60 and g["efficiency"] == 0.5
+    # Welfare 0+30+0 + 25+25+10 = 90; max = (pot 30 + 3 * 10) * 2 rounds = 120.
+    assert g["welfare"] == 90 and g["efficiency"] == 0.75
     # 4 model actions: 1 retry_ok, 1 fallback; calls 1 + 2 + 1 + 2 = 6.
     assert g["model_actions"] == 4 and g["retry_rate"] == 0.25 and g["fallback_rate"] == 0.25
     assert (g["calls"], g["input_tokens"], g["output_tokens"]) == (6, 400, 40)
 
-    # Totals 20 / 30 / 10. U_i = P_i - 0.5 * mean(others):
-    # U0 = 20 - 0.5*20 = 10, U1 = 30 - 0.5*15 = 22.5, U2 = 10 - 0.5*25 = -2.5.
-    assert [a[i]["P"] for i in range(3)] == [20, 30, 10]
-    assert [a[i]["U"] for i in range(3)] == pytest.approx([10.0, 22.5, -2.5])
+    # Totals 25 / 55 / 10. U_i = P_i - 0.5 * mean(others):
+    # U0 = 25 - 0.5*32.5 = 8.75, U1 = 55 - 0.5*17.5 = 46.25, U2 = 10 - 0.5*40 = -10.
+    assert [a[i]["P"] for i in range(3)] == [25, 55, 10]
+    assert [a[i]["U"] for i in range(3)] == pytest.approx([8.75, 46.25, -10.0])
     assert [a[i]["rank"] for i in range(3)] == [2, 1, 3]
     assert [a[i]["solve_rate"] for i in range(3)] == [0.5, 1.0, 0.0]
 

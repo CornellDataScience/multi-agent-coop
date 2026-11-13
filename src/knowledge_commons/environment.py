@@ -23,15 +23,18 @@ def _is_digit(d) -> bool:
     return isinstance(d, int) and not isinstance(d, bool) and 0 <= d <= 9
 
 
-def _sanitize_message(action: MessageAction, agent_id: int, n: int) -> MessageAction:
-    """Drop sends to self, fill missing recipients with None, and turn any
-    non-digit into None. LLM output is validated earlier, in parsing.py."""
+def _sanitize_message(action: MessageAction, agent_id: int, n: int,
+                      fill: int | None = None) -> MessageAction:
+    """Drop sends to self and replace missing or non-digit sends with
+    ``fill``: None normally, the sender's true digit under must-send (the
+    same rule as the LLM fallback). LLM output is validated earlier, in
+    parsing.py."""
     sends = {}
     for j in range(n):
         if j == agent_id:
             continue
         d = action.sends.get(j)
-        sends[j] = d if _is_digit(d) else None
+        sends[j] = d if _is_digit(d) else fill
     action.sends = sends
     return action
 
@@ -79,7 +82,9 @@ class KCEnvironment:
         # Message phase: build every observation before collecting any action.
         m_obs = {i: build_message_obs(cfg, round_no, i, code, past) for i in range(n)}
         m_obs_log = copy.deepcopy(m_obs)
-        m_act = {i: _sanitize_message(self.agents[i].send_messages(m_obs[i]), i, n) for i in range(n)}
+        fill = (lambda i: None) if cfg.allow_withhold else (lambda i: int(code[i]))
+        m_act = {i: _sanitize_message(self.agents[i].send_messages(m_obs[i]), i, n, fill(i))
+                 for i in range(n)}
         m_act = copy.deepcopy(m_act)
         sends = {i: dict(a.sends) for i, a in m_act.items()}
 
@@ -100,6 +105,7 @@ class KCEnvironment:
         """Pre-game rules quiz for every agent that takes it (scripted agents
         return None). Graded here against ``alpha``, logged, and never fed
         back: no later observation mentions it."""
+        quiz_args = (self.cfg.alpha, self.cfg.pot_size, self.cfg.n_agents)
         for agent in self.agents:
             obs = build_rules_obs(self.cfg, agent.agent_id)
             act = agent.comprehension_check(copy.deepcopy(obs))
@@ -113,8 +119,8 @@ class KCEnvironment:
                 "served_by": act.served_by,
                 "usage": dict(act.usage),
                 "answers": act.answers,
-                "expected": comprehension_expected(self.cfg.alpha),
-                "passed": grade_comprehension(act.answers, self.cfg.alpha),
+                "expected": comprehension_expected(*quiz_args),
+                "passed": grade_comprehension(act.answers, *quiz_args),
             }
 
     def run(self) -> KCGameLog:

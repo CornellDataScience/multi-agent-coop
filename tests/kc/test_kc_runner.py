@@ -31,7 +31,7 @@ def test_conditions_defined():
 def test_scripted_run_writes_one_log_per_seed(tmp_path):
     res = run_condition(get_condition("kc_all_honest"), tmp_path, seeds=[0, 1, 2])
     assert not res.aborted and res.calls == 0
-    assert [p.name for p in res.paths] == [f"kc_all_honest_scripted_a0.5_private_memory_seed{s}.jsonl"
+    assert [p.name for p in res.paths] == [f"kc_all_honest_scripted_a0_private_memory_seed{s}.jsonl"
                                            for s in range(3)]
     for p in res.paths:
         assert summarize_game(p)["game"]["information_flow"] == 1.0
@@ -41,7 +41,7 @@ def test_mock_llm_run_is_deterministic_and_logged(tmp_path):
     a = run_condition(get_condition("kc_llm"), tmp_path / "a", model="mock", seeds=[0, 1])
     b = run_condition(get_condition("kc_llm"), tmp_path / "b", model="mock", seeds=[0, 1])
     assert len(a.paths) == 2 and not a.aborted
-    assert a.paths[0].name == "kc_llm_mock_a0.5_private_memory_neutral_seed0.jsonl"
+    assert a.paths[0].name == "kc_llm_mock_a0_private_memory_neutral_seed0.jsonl"
     assert [p.read_text() for p in a.paths] == [p.read_text() for p in b.paths]
     game = load_game(a.paths[0])
     assert game["meta"]["agents"][0] == {"id": 0, "type": "mock", "model": "mock", "prompt_variant": "neutral"}
@@ -107,7 +107,7 @@ def test_claude_path_uses_injected_chat_fn(tmp_path):
     assert all(kw["output_config"] == {"effort": "low"} for kw in seen)
     meta = load_game(res.paths[0])["meta"]
     assert meta["agents"][0]["type"] == "claude"
-    assert res.paths[0].name == "kc_probe_honest_claude-haiku-5-5_a0.5_private_memory_neutral_low_r2_seed0.jsonl"
+    assert res.paths[0].name == "kc_probe_honest_claude-haiku-5-5_a0_private_memory_neutral_low_r2_seed0.jsonl"
     assert summarize_game(res.paths[0])["game"]["input_tokens"] == 500 * len(seen)
 
 

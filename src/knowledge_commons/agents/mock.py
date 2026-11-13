@@ -1,7 +1,8 @@
 """Network-free stand-in model for ``--model mock`` runs.
 
 The responder reads only the prompt text (so it sits behind the same
-firewall as a real model), mostly shares truthfully, sometimes withholds or
+firewall as a real model), mostly shares truthfully, sometimes withholds (sends
+its true digit instead under must-send) or
 sends a false digit, and now and then wraps its JSON in prose or emits junk
 so the retry and fallback paths get exercised. It answers the pre-game quiz
 from a separate RNG stream, so the quiz never shifts game play. Seeded.
@@ -15,21 +16,26 @@ from typing import Callable
 from ...agents.backends import ChatResult, MockBackend
 
 _DIGIT = re.compile(r"Your digit \(position (\d+)\) this round is (\d)")
-_RECIPIENT = re.compile(r'"(\d+)": <digit 0-9 or null>')
+_RECIPIENT = re.compile(r'"(\d+)": <digit 0-9(?: or null)?>')
 _RECEIVED = re.compile(r"agent (\d+) sent you (\d|nothing)")
 _N_DIGITS = re.compile(r"exactly (\d+) digits")
 _ALPHA = re.compile(r"your total points - ([\d.]+) x")
+_POT = re.compile(r"a pot of ([\d.]+) points")
+_ALL = re.compile(r"If all (\d+) agents solve")
 _REASONS = ("Sharing seems to pay off here.", "Keeping my options open this round.")
 
 
 def _quiz_reply(prompt: str, rng: random.Random) -> str:
-    """Correct answers ~85% of the time, else a sign error."""
+    """Correct answers ~85% of the time, else a direction error."""
     m = _ALPHA.search(prompt)
     size = float(m.group(1)) * 20 if m else 0.0
     direction = "same" if size == 0 else "down"
     if rng.random() < 0.15:
         direction = "up"
-    return '{"q1_direction": "%s", "q1_amount": %g, "q2_amount": 10}' % (direction, size)
+    pot = float(_POT.search(prompt).group(1)) if _POT.search(prompt) else 40.0
+    n = int(_ALL.search(prompt).group(1)) if _ALL.search(prompt) else 4
+    return ('{"q1_direction": "%s", "q1_amount": %g, "q2_amount": 10, "q3_all_amount": %g, '
+            '"q3_fewer_amount": %g}' % (direction, size, round(pot / n, 2), round(pot / (n - 1), 2)))
 
 
 def mock_responder(seed: int) -> Callable[[str, str], str]:
@@ -45,13 +51,14 @@ def mock_responder(seed: int) -> Callable[[str, str], str]:
         m = _DIGIT.search(prompt)
         pos, digit = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
         if '"messages"' in prompt:
+            must_send = "or null>" not in prompt
             parts = []
             for j in _RECIPIENT.findall(prompt):
                 r = rng.random()
                 if r < 0.7:
                     value = str(digit)
                 elif r < 0.85:
-                    value = "null"
+                    value = str(digit) if must_send else "null"  # no extra RNG draw
                 else:
                     value = str((digit + rng.randint(1, 9)) % 10)
                 parts.append(f'"{j}": {value}')

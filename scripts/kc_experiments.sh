@@ -8,7 +8,7 @@
 #
 #   Stage 2, info conditions + bot probes, at the alpha picked from stage 1
 #   (pick one where cooperation is partial, not 100% or 0%):
-#     scripts/kc_experiments.sh haiku followup 10 1.5
+#     scripts/kc_experiments.sh haiku followup 10 1
 #
 # Every command has a --max-calls cap (2x expected calls) so nothing runs away.
 # All runs start at seed 0, so every model and condition sees the same codes.
@@ -25,18 +25,22 @@ SEEDS=${3:?usage: $0 MODEL sweep|followup SEEDS [ALPHA]}
 
 BIN=.venv/bin/infocoop
 OUT=results/kc/$1
-FULL_CAP=$((SEEDS * 64 * 2))    # 4 LLM agents x 2 calls x 8 rounds, doubled
-PROBE_CAP=$((SEEDS * 16 * 2))   # 1 LLM agent
+FULL_CAP=$((SEEDS * 70 * 2))    # 4 LLM agents x (2 calls x 8 rounds + quiz), plus slack, doubled
+PROBE_CAP=$((SEEDS * 18 * 2))   # 1 LLM agent
 
 case "$STAGE" in
   sweep)
-    # E2: where does sharing break? Theory says the incentive to share
-    # flips at alpha = 1, so the grid brackets it.
-    for a in 0 1 1.5 2 3; do
+    # E2: where does sharing break? Split-pot scoring makes lying to one
+    # agent pay even at alpha = 0; alpha adds rivalry on top.
+    for a in 0 1 2; do
       echo "-- E2 $MODEL alpha=$a"
       $BIN kc run kc_llm --model "$MODEL" --alpha "$a" --info private_memory \
         --seeds "$SEEDS" --max-calls "$FULL_CAP" --out "$OUT/e2_alpha" --no-metrics
     done
+    # E2 must-send cell: no withholding, so every message is the truth or a lie.
+    echo "-- E2 $MODEL alpha=0 must-send"
+    $BIN kc run kc_llm --model "$MODEL" --alpha 0 --must-send --info private_memory \
+      --seeds "$SEEDS" --max-calls "$FULL_CAP" --out "$OUT/e2_alpha" --no-metrics
     $BIN kc metrics "$OUT/e2_alpha" > "$OUT/e2_metrics.json"
     echo "== sweep done: $MODEL -> $OUT/e2_metrics.json"
     ;;

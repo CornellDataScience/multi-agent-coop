@@ -56,4 +56,4 @@ class RoundRecord:
     solved: dict[int, bool]
     n_solvers: int
     bonus: bool
-    points: dict[int, int]
+    points: dict[int, float]

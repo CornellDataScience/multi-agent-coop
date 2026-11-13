@@ -6,10 +6,11 @@ from src.knowledge_commons.agents.scripted import SCRIPTED_POLICIES, make_script
 from src.knowledge_commons.observation import KCObservation
 
 
-def _obs(agent_id=0, digit=4, phase="message", received=None, history=(), rnd=1, n=4):
+def _obs(agent_id=0, digit=4, phase="message", received=None, history=(), rnd=1, n=4,
+         allow_withhold=True):
     return KCObservation(
         agent_id=agent_id, phase=phase, round=rnd, n_agents=n,
-        reward_correct=10, group_bonus=10, bonus_threshold=3, alpha=0.5,
+        pot_size=40, group_bonus=10, bonus_threshold=3, alpha=0.5, allow_withhold=allow_withhold,
         info_condition="private_memory", my_position=agent_id, my_digit=digit,
         received=received, history=list(history), reputation=None,
     )
@@ -36,6 +37,8 @@ def test_honest_sends_truth_and_trusts_everything():
 def test_hoarder_sends_nothing():
     a = make_scripted("hoarder", 2)
     assert a.send_messages(_obs(agent_id=2)).sends == {0: None, 1: None, 3: None}
+    # Must-send: nothing is not an option, so the hoarder sends its true digit.
+    assert a.send_messages(_obs(agent_id=2, allow_withhold=False)).sends == {0: 4, 1: 4, 3: 4}
     assert a.make_guess(_obs(agent_id=2, digit=5, phase="guess",
                              received={0: 1, 1: 2, 3: 3})).guess == (1, 2, 5, 3)
 

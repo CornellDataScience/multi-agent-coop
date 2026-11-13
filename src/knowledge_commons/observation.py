@@ -26,10 +26,11 @@ class KCObservation:
     phase: str  # "message" | "guess"
     round: int | None  # None under no_memory: every round looks like the first
     n_agents: int
-    reward_correct: int
+    pot_size: float
     group_bonus: int
     bonus_threshold: int
     alpha: float
+    allow_withhold: bool  # False: must send a digit to every other agent
     info_condition: str
     my_position: int  # == agent_id
     my_digit: int
@@ -48,10 +49,11 @@ class KCRulesObservation:
 
     agent_id: int
     n_agents: int
-    reward_correct: int
+    pot_size: float
     group_bonus: int
     bonus_threshold: int
     alpha: float
+    allow_withhold: bool
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -59,8 +61,9 @@ class KCRulesObservation:
 
 def build_rules_obs(cfg: "KCConfig", agent_id: int) -> KCRulesObservation:
     return KCRulesObservation(agent_id=agent_id, n_agents=cfg.n_agents,
-                              reward_correct=cfg.reward_correct, group_bonus=cfg.group_bonus,
-                              bonus_threshold=cfg.bonus_threshold, alpha=cfg.alpha)
+                              pot_size=cfg.pot_size, group_bonus=cfg.group_bonus,
+                              bonus_threshold=cfg.bonus_threshold, alpha=cfg.alpha,
+                              allow_withhold=cfg.allow_withhold)
 
 
 def _history_entry(rec: "RoundRecord", agent_id: int) -> dict:
@@ -108,10 +111,11 @@ def _build(cfg: "KCConfig", phase: str, round_no: int, agent_id: int, code, past
         phase=phase,
         round=None if info == "no_memory" else round_no,
         n_agents=cfg.n_agents,
-        reward_correct=cfg.reward_correct,
+        pot_size=cfg.pot_size,
         group_bonus=cfg.group_bonus,
         bonus_threshold=cfg.bonus_threshold,
         alpha=cfg.alpha,
+        allow_withhold=cfg.allow_withhold,
         info_condition=info,
         my_position=agent_id,
         my_digit=int(code[agent_id]),

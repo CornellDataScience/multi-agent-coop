@@ -44,8 +44,8 @@ def _msg_obs(info="private_memory", rnd=3, agent_id=0, code=(4, 7, 1, 2), alpha=
     return build_message_obs(cfg, rnd, agent_id, code, _past(cfg, rnd - 1))
 
 
-def _guess_obs(info="private_memory", rnd=3, code=(4, 7, 1, 2)):
-    cfg = KCConfig(info_condition=info)
+def _guess_obs(info="private_memory", rnd=3, code=(4, 7, 1, 2), alpha=0.5):
+    cfg = KCConfig(info_condition=info, alpha=alpha)
     sends = {0: {1: 4, 2: 4, 3: 4}, 1: {0: 7, 2: 7, 3: 7}, 2: {0: None, 1: 1, 3: 1}, 3: {0: 2, 1: 2, 2: 2}}
     return build_guess_obs(cfg, rnd, 0, code, _past(cfg, rnd - 1), sends)
 

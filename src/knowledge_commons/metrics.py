@@ -140,7 +140,7 @@ def summarize_game(path: str | Path) -> dict:
     counts = {k: all_kinds.count(k) for k in SEND_KINDS}
     n_rounds = len(rounds)
 
-    totals = {i: sum(r["points"][i] for r in rounds) for i in range(n)}
+    totals = {i: round(sum(r["points"][i] for r in rounds), 2) for i in range(n)}
     utils = utilities(totals, alpha)
 
     agents: dict[int, dict] = {}
@@ -191,7 +191,8 @@ def summarize_game(path: str | Path) -> dict:
         u = q.get("usage") or {}
         usage_in += u.get("input_tokens", 0)
         usage_out += u.get("output_tokens", 0)
-    welfare = sum(totals.values())
+    welfare = round(sum(totals.values()), 2)
+    max_per_round = cfg["pot_size"] + n * cfg["group_bonus"]
 
     g = {
         "rounds": n_rounds,
@@ -209,7 +210,7 @@ def summarize_game(path: str | Path) -> dict:
         "bonus_rate": _ratio(sum(r["bonus"] for r in rounds), n_rounds),
         "mean_n_solvers": _ratio(sum(r["n_solvers"] for r in rounds), n_rounds),
         "welfare": welfare,
-        "efficiency": _ratio(welfare, n * (cfg["reward_correct"] + cfg["group_bonus"]) * n_rounds),
+        "efficiency": _ratio(welfare, max_per_round * n_rounds),
         "model_actions": len(statuses),
         "retry_rate": _ratio(statuses.count("retry_ok"), len(statuses)),
         "fallback_rate": _ratio(statuses.count("fallback"), len(statuses)),
@@ -227,6 +228,8 @@ def summarize_game(path: str | Path) -> dict:
         "seed": meta.get("seed"),
         "alpha": alpha,
         "info_condition": cfg["info_condition"],
+        "allow_withhold": cfg["allow_withhold"],
+        "pot_size": cfg["pot_size"],
         "model": game_model(meta),
         "prompt_variant": (meta.get("run_parameters") or {}).get("prompt_variant"),
         "game": g,

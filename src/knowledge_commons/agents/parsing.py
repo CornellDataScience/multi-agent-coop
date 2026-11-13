@@ -51,9 +51,11 @@ def _as_digit(value) -> int:
     return n
 
 
-def parse_message_output(text: str, agent_id: int, n_agents: int) -> dict[int, int | None]:
+def parse_message_output(text: str, agent_id: int, n_agents: int,
+                         allow_null: bool = True) -> dict[int, int | None]:
     """``{"messages": {"<id>": digit | null, ...}}`` with every other agent
-    exactly once. Returns recipient id -> digit or None."""
+    exactly once. Returns recipient id -> digit or None. With
+    ``allow_null=False`` (must-send) a null value is invalid."""
     data = extract_json_object(text, "messages")
     msgs = data["messages"]
     if not isinstance(msgs, dict):
@@ -65,6 +67,8 @@ def parse_message_output(text: str, agent_id: int, n_agents: int) -> dict[int, i
         j = int(k)
         if j in out:
             raise ParseError(f"recipient {j} listed twice")
+        if v is None and not allow_null:
+            raise ParseError(f"null for recipient {j}, but every agent must be sent a digit")
         out[j] = None if v is None else _as_digit(v)
     expected = {j for j in range(n_agents) if j != agent_id}
     if set(out) != expected:
@@ -105,6 +109,7 @@ def extract_reason(text: str, key: str) -> str | None:
 
 
 _DIRECTIONS = ("up", "down", "same")
+_QUIZ_AMOUNTS = ("q1_amount", "q2_amount", "q3_all_amount", "q3_fewer_amount")
 
 
 def _as_number(value, name: str) -> float:
@@ -121,17 +126,18 @@ def _as_number(value, name: str) -> float:
 
 
 def parse_comprehension_output(text: str) -> dict:
-    """``{"q1_direction": "up"|"down"|"same", "q1_amount": n, "q2_amount": n}``.
-    Only checks shape; correctness is graded by the environment."""
+    """``{"q1_direction": "up"|"down"|"same", "q1_amount": n, "q2_amount": n,
+    "q3_all_amount": n, "q3_fewer_amount": n}``. Only checks shape;
+    correctness is graded by the environment."""
     data = extract_json_object(text, "q1_direction")
     direction = data["q1_direction"]
     if not isinstance(direction, str) or direction.strip().lower() not in _DIRECTIONS:
         raise ParseError(f"q1_direction must be one of {_DIRECTIONS}, got {direction!r}")
-    for key in ("q1_amount", "q2_amount"):
+    out = {"q1_direction": direction.strip().lower()}
+    for key in _QUIZ_AMOUNTS:
         if key not in data:
             raise ParseError(f"missing {key!r} field")
-    q1 = _as_number(data["q1_amount"], "q1_amount")
-    q2 = _as_number(data["q2_amount"], "q2_amount")
-    if not all(map(math.isfinite, (q1, q2))):
-        raise ParseError("amounts must be finite")
-    return {"q1_direction": direction.strip().lower(), "q1_amount": q1, "q2_amount": q2}
+        out[key] = _as_number(data[key], key)
+        if not math.isfinite(out[key]):
+            raise ParseError(f"{key} must be finite")
+    return out

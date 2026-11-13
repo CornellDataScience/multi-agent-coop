@@ -9,8 +9,9 @@ from ..observation import KCObservation, KCRulesObservation
 from .prompt_variants import DEFAULT_VARIANT, get_variant
 
 _PLACEHOLDER = re.compile(
-    r"\{(agent_id|n_agents|n_others|last_position|round|my_digit|reward_correct|group_bonus|"
-    r"bonus_threshold|alpha|recipient_keys|message_example|guess_example|received_list)\}"
+    r"\{(agent_id|n_agents|n_others|last_position|round|my_digit|pot_size|group_bonus|"
+    r"bonus_threshold|alpha|n_one_fewer|recipient_keys|message_example|guess_example|"
+    r"received_list|send_rule|value_rule)\}"
 )
 
 
@@ -29,29 +30,39 @@ def _received_list(received: dict[int, int | None]) -> str:
 _REASON = '"reason": "<one short sentence on why>"'
 
 
-def _rule_values(obs: KCObservation | KCRulesObservation) -> dict[str, str]:
-    """Placeholders the system prompt and rules need; both observation
+def _num(x: float) -> str:
+    """40 -> "40", 23.333 -> "23.33": the 2-decimal precision of the logs."""
+    return f"{round(x, 2):g}"
+
+
+def _rule_values(obs: KCObservation | KCRulesObservation, t: dict[str, str]) -> dict[str, str]:
+    """Placeholders the system prompt, rules and quiz need; both observation
     types carry these fields."""
+    must = not obs.allow_withhold
     return {
         "agent_id": str(obs.agent_id),
         "n_agents": str(obs.n_agents),
         "n_others": str(obs.n_agents - 1),
+        "n_one_fewer": str(obs.n_agents - 1),
         "last_position": str(obs.n_agents - 1),
-        "reward_correct": str(obs.reward_correct),
-        "group_bonus": str(obs.group_bonus),
+        "pot_size": _num(obs.pot_size),
+        "group_bonus": _num(obs.group_bonus),
         "bonus_threshold": str(obs.bonus_threshold),
         "alpha": f"{obs.alpha:g}",
+        "send_rule": t["send_required" if must else "send_optional"],
+        "value_rule": t["value_required" if must else "value_optional"],
     }
 
 
-def _values(obs: KCObservation) -> dict[str, str]:
+def _values(obs: KCObservation, t: dict[str, str]) -> dict[str, str]:
     others = [j for j in range(obs.n_agents) if j != obs.agent_id]
+    slot = "<digit 0-9 or null>" if obs.allow_withhold else "<digit 0-9>"
     msg_example = '{"messages": {%s}, %s}' % (
-        ", ".join(f'"{j}": <digit 0-9 or null>' for j in others), _REASON)
+        ", ".join(f'"{j}": {slot}' for j in others), _REASON)
     guess_example = '{"guess": [%s], "confidence": <number 0-1>, %s}' % (
         ", ".join(["<digit>"] * obs.n_agents), _REASON)
     return {
-        **_rule_values(obs),
+        **_rule_values(obs, t),
         "round": "" if obs.round is None else str(obs.round),
         "my_digit": str(obs.my_digit),
         "recipient_keys": ", ".join(f'"{j}"' for j in others),
@@ -73,7 +84,7 @@ def _history_line(h: dict) -> str:
         f"- Round {h['round']}: the code was {_digits(h['code'])}. "
         f"You sent: {sent}. You received: {received}. "
         f"Your guess was {_digits(h['my_guess'])} ({'correct' if h['solved'] else 'wrong'}); "
-        f"you earned {h['points']} points. {solvers} agent{'' if solvers == 1 else 's'} "
+        f"you earned {_num(h['points'])} points. {solvers} agent{'' if solvers == 1 else 's'} "
         f"guessed the code; the bonus was {'paid' if h['bonus'] else 'not paid'}."
     )
 
@@ -97,7 +108,7 @@ def _reputation_lines(obs: KCObservation) -> list[str]:
 def build_prompts(obs: KCObservation, variant: str = DEFAULT_VARIANT) -> tuple[str, str]:
     """Return ``(system, user)`` for this observation's phase."""
     t = get_variant(variant)
-    v = _values(obs)
+    v = _values(obs, t)
     sections = [_fill(t["rules"], v)]
 
     if obs.info_condition != "no_memory":
@@ -123,5 +134,5 @@ def build_quiz_prompts(obs: KCRulesObservation, variant: str = DEFAULT_VARIANT) 
     """``(system, user)`` for the pre-game comprehension check: the same
     system prompt and rules as the game, then the two quiz questions."""
     t = get_variant(variant)
-    v = _rule_values(obs)
-    return _fill(t["system"], v), "\n\n".join([_fill(t["rules"], v), t["quiz"]])
+    v = _rule_values(obs, t)
+    return _fill(t["system"], v), "\n\n".join([_fill(t["rules"], v), _fill(t["quiz"], v)])

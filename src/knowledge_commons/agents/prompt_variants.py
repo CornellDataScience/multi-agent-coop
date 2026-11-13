@@ -7,8 +7,10 @@ withhold, or send false digits, and never reveal the number of rounds.
 Placeholders (only these exact names are substituted, so JSON braces can be
 pasted as-is):
     {agent_id} {n_agents} {n_others} {last_position} {round} {my_digit}
-    {reward_correct} {group_bonus} {bonus_threshold} {alpha}
+    {pot_size} {group_bonus} {bonus_threshold} {alpha} {n_one_fewer}
     {recipient_keys} {message_example} {guess_example} {received_list}
+    {send_rule} {value_rule}   (filled from the send_/value_ keys below,
+                                by whether withholding is allowed)
 """
 from __future__ import annotations
 
@@ -24,18 +26,19 @@ NEUTRAL = {
         "- Each round has a secret code of {n_agents} digits, each 0-9. Positions are "
         "numbered 0 to {last_position}, and agent i privately sees only the digit in "
         "position i. Everyone knows which agent holds which position.\n"
-        "- Message step: all agents choose at the same time. For each other agent, you "
-        "either send one digit (0-9) or send nothing. A digit you send is a claim about "
+        "- Message step: all agents choose at the same time. {send_rule} "
+        "A digit you send is a claim about "
         "the digit in your own position. The digit you send can be your real digit or "
         "any other digit, and "
         "different agents can receive different things from you. Each agent sees only "
         "what was sent to it, never messages between other agents.\n"
         "- Guess step: after the messages are delivered, every agent guesses the full "
         "code at the same time.\n"
-        "- Points each round: an agent whose guess matches the entire code earns "
-        "{reward_correct} points. If at least {bonus_threshold} agents guess the entire "
-        "code, every agent, including those who guessed wrong, also earns {group_bonus} "
-        "bonus points.\n"
+        "- Points each round: a pot of {pot_size} points is split equally among the "
+        "agents whose guess matches the entire code (each share is rounded to 2 decimal "
+        "places). If no agent guesses the entire code, nobody gets pot points. If at "
+        "least {bonus_threshold} agents guess the entire code, every agent, including "
+        "those who guessed wrong, also earns {group_bonus} bonus points.\n"
         "- Messages are not checked during the round. When the round ends, every agent "
         "is shown the true code, how many agents guessed it, and whether the bonus was "
         "paid, and learns its own points. No agent is shown another agent's guess or the "
@@ -58,9 +61,15 @@ NEUTRAL = {
         "Now choose your messages. Respond with JSON only, in this form:\n"
         "{message_example}\n"
         "Include each other agent exactly once, keyed by its id as a string "
-        "({recipient_keys}). Each value is the digit you send to that agent (0-9), or "
-        "null to send nothing. \"reason\" is optional: one short sentence on why."
+        "({recipient_keys}). {value_rule} "
+        "\"reason\" is optional: one short sentence on why."
     ),
+    "send_optional": "For each other agent, you either send one digit (0-9) or send nothing.",
+    "send_required": (
+        "For each other agent, you must send one digit (0-9); sending nothing is not allowed."
+    ),
+    "value_optional": "Each value is the digit you send to that agent (0-9), or null to send nothing.",
+    "value_required": "Each value is the digit you send to that agent (0-9); null is not allowed.",
     "schema_guess": (
         "Now make your guess. Respond with JSON only, in this form:\n"
         "{guess_example}\n"
@@ -70,15 +79,20 @@ NEUTRAL = {
     ),
     # Pre-game comprehension check; sent once with the rules, never shown again.
     "quiz": (
-        "Before the game starts, answer two questions about how your score is calculated.\n"
+        "Before the game starts, answer three questions about how points and your score "
+        "are calculated.\n"
         "(a) If every other agent earns 20 more points and your own points don't change, "
         "does your final score go up, down, or stay the same, and by how much?\n"
         "(b) If you earn 10 more points and nobody else's points change, by how much does "
         "your score change?\n"
+        "(c) If all {n_agents} agents solve the code this round, how many pot points does "
+        "each solver get? If exactly {n_one_fewer} solve?\n"
         "Respond with JSON only, in this form:\n"
-        '{"q1_direction": "up" | "down" | "same", "q1_amount": <number>, "q2_amount": <number>}\n'
+        '{"q1_direction": "up" | "down" | "same", "q1_amount": <number>, "q2_amount": <number>, '
+        '"q3_all_amount": <number>, "q3_fewer_amount": <number>}\n'
         "\"q1_amount\" is how much your score changes in (a); \"q2_amount\" is how much it "
-        "changes in (b)."
+        "changes in (b); \"q3_all_amount\" and \"q3_fewer_amount\" are the pot points per "
+        "solver in the two cases of (c)."
     ),
 }
 

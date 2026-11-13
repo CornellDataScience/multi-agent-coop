@@ -103,19 +103,22 @@ class MockBackend:
 class KCConfig:
     n_agents: int = 4
     max_rounds: int = 8
-    reward_correct: int = 10
+    pot_size: float = 40                    # split evenly among each round's solvers
     group_bonus: int = 10
     bonus_threshold: int = 3
-    alpha: float = 0.5
+    alpha: float = 0.0
     info_condition: str = "private_memory"  # no_memory | private_memory | public_reputation
+    allow_withhold: bool = True              # False = must-send variant
     horizon_known: bool = False              # v1: must be False
     seed: int = 0
     # code_length == n_agents; digits are 0-9
-    def max_welfare(self) -> int: ...        # n_agents * (R + B) * max_rounds
+    def max_welfare_per_round(self) -> float: ...  # pot_size + n_agents * group_bonus
+    def max_welfare(self) -> float: ...            # max_welfare_per_round() * max_rounds
 ```
 
 Validate in `__post_init__`: `n_agents >= 2`, `1 <= bonus_threshold <= n_agents`,
-`alpha >= 0`, known `info_condition`, `horizon_known is False`.
+`pot_size > 0`, `group_bonus >= 0`, `alpha >= 0`, known `info_condition`,
+`horizon_known is False`.
 
 ### 3.3 Events
 
@@ -156,17 +159,18 @@ class RoundRecord:
     solved: dict[int, bool]
     n_solvers: int
     bonus: bool
-    points: dict[int, int]
+    points: dict[int, float]        # split-pot points, rounded to 2 decimals
 ```
 
 ### 3.4 Scoring (pure functions, no state)
 
 ```python
 def classify_send(digit: int | None, true_digit: int) -> str  # "truthful" | "withheld" | "lie"
-def round_points(solved: dict[int, bool], cfg: KCConfig) -> tuple[dict[int, int], int, bool]
-def utilities(totals: dict[int, int], alpha: float) -> dict[int, float]
-def comprehension_expected(alpha: float) -> dict   # correct quiz answers
-def grade_comprehension(answers: dict | None, alpha: float) -> bool
+def pot_share(pot_size: float, n_solvers: int) -> float      # round(pot / n, 2); 0 if nobody solves
+def round_points(solved: dict[int, bool], cfg: KCConfig) -> tuple[dict[int, float], int, bool]
+def utilities(totals: dict[int, float], alpha: float) -> dict[int, float]
+def comprehension_expected(alpha, pot_size, n_agents) -> dict  # correct quiz answers (a)-(c)
+def grade_comprehension(answers: dict | None, alpha, pot_size, n_agents) -> bool
 ```
 
 ### 3.5 Observation (the firewall)
@@ -178,7 +182,8 @@ class KCObservation:
     phase: str                       # "message" | "guess"
     round: int | None                # None under no_memory
     n_agents: int
-    reward_correct: int; group_bonus: int; bonus_threshold: int; alpha: float
+    pot_size: float; group_bonus: int; bonus_threshold: int; alpha: float
+    allow_withhold: bool             # False: prompts say a digit must be sent to everyone
     info_condition: str
     my_position: int                 # == agent_id
     my_digit: int
@@ -192,7 +197,7 @@ def build_guess_obs(cfg, round_no, agent_id, code, past_rounds, sends_this_round
 @dataclass(frozen=True)
 class KCRulesObservation:            # comprehension check only: rules, no digit/round/history
     agent_id: int; n_agents: int
-    reward_correct: int; group_bonus: int; bonus_threshold: int; alpha: float
+    pot_size: float; group_bonus: int; bonus_threshold: int; alpha: float; allow_withhold: bool
 
 def build_rules_obs(cfg, agent_id) -> KCRulesObservation
 ```
@@ -259,31 +264,39 @@ guess observations, then collect all guesses; resolve with `scoring.py`;
 append to the log.
 
 Sanitize, do not crash, on scripted or fallback edge cases: ignore a send to
-self, treat a missing recipient as `None`. LLM output is validated in
+self, treat a missing recipient as `None` (under must-send, a missing or
+`None` send becomes the sender's true digit, matching the LLM fallback). LLM output is validated in
 `parsing.py` before it ever reaches the environment.
 
 ### 3.8 Log format (JSONL)
 
 ```
-{"record": "meta", "game": "knowledge_commons", "schema_version": 1,
+{"record": "meta", "game": "knowledge_commons", "schema_version": 2,
  "condition": str, "seed": int, "config": {...KCConfig},
  "agents": [{"id": 0, "type": "claude", "model": str, "prompt_variant": str}, ...],
  "run_parameters": {...}}
 {"record": "comprehension", "agent": 0, "observation": {...KCRulesObservation},
  "raw_output": str, "parse_status": "ok|retry_ok|failed", "served_by": str,
- "usage": {...}, "answers": {"q1_direction", "q1_amount", "q2_amount"} | null,
- "expected": {"q1_direction", "q1_change", "q2_change"}, "passed": bool}
+ "usage": {...}, "answers": {"q1_direction", "q1_amount", "q2_amount",
+             "q3_all_amount", "q3_fewer_amount"} | null,
+ "expected": {"q1_direction", "q1_change", "q2_change", "q3_all_share",
+              "q3_fewer_share"}, "passed": bool}
                                      # one per LLM agent, none for scripted agents
 {"record": "round", "round": 1, "code": [..],
  "sends": {"0": {"1": 7, "2": null, "3": 7}, ...},
  "guesses": {"0": [..], ...}, "confidence": {"0": 0.8 | null, ...},
  "solved": {"0": true, ...}, "n_solvers": 4, "bonus": true,
- "points": {"0": 20, ...},
+ "points": {"0": 23.33, ...},       # floats, 2 decimals
  "actions": {"message": {"0": {"raw_output", "parse_status", "served_by", "usage", "reason"}},
              "guess":   {"0": {...}}},
  "observations": {"message": {"0": {...}}, "guess": {"0": {...}}}}
-{"record": "end", "totals": {"0": int}, "utilities": {"0": float}}
+{"record": "end", "totals": {"0": float}, "utilities": {"0": float}}   # 2 decimals
 ```
+
+`schema_version` 2 = split-pot scoring (`pot_size`, float points) and
+`allow_withhold`. `load_game()` raises `UnsupportedLogError` (a `ValueError`)
+for version 1 logs, which used per-solver scoring; `kc show`, `kc metrics` and
+`kc report` print that message and exit 1.
 
 JSON keys for agent ids are strings. `load_game()` converts them back to ints
 and returns `{"meta", "comprehension", "rounds", "end"}`; `comprehension` is
@@ -295,8 +308,8 @@ and returns `{"meta", "comprehension", "rounds", "end"}`; `comprehension` is
 infocoop kc list
 infocoop kc run <condition> [--model M] [--effort E] [--temperature T]
                 [--prompt V] [--alpha A] [--info no_memory|private_memory|public_reputation]
-                [--agents N] [--rounds R] [--seeds N] [--seed-start S]
-                [--max-calls N] [--out DIR]
+                [--agents N] [--rounds R] [--pot-size P] [--must-send]
+                [--seeds N] [--seed-start S] [--max-calls N] [--out DIR]
 infocoop kc show <file|dir> [--raw]
 infocoop kc metrics <file|dir>
 infocoop kc report <dir> [<dir> ...] --out docs/knowledge_commons/report
@@ -304,24 +317,30 @@ infocoop kc report <dir> [<dir> ...] --out docs/knowledge_commons/report
 
 `--model mock` uses `MockBackend` (no network). `--max-calls` aborts cleanly
 (writing completed games) once the run has made that many model calls. Output
-filenames encode condition, model, alpha, info condition, prompt and seed, so
-different runs never overwrite each other.
+filenames encode condition, model, alpha, info condition, `mustsend` (when
+set), prompt, any `--agents` / `--rounds` / `--pot-size` override, and seed, so
+different runs never overwrite each other. `--must-send` is also recorded in
+the log meta (`config.allow_withhold = false`, `run_parameters.must_send`).
 
 ### 3.10 Report output
 
 `report.py` writes into the `--out` directory:
 
 - `data.json`: `{"generated_at", "groups": [{"condition", "model", "alpha",
-  "info_condition", "n_games", "metrics": {name: {"mean", "lo", "hi", "n"}}}],
+  "info_condition", "prompt_variant", "allow_withhold", "pot_size", "n_games", "metrics": {name: {"mean", "lo", "hi", "n"}}}],
   "episodes": [{"file", "round", "why"}], "cost": {"calls", "input_tokens",
   "output_tokens"}}`. Same spirit as the gh-pages Asymmetry Bench `data.json`
   so it can become a dashboard tab later.
-- `RESULTS.md`: tables of the main metrics per group with CIs.
+- `RESULTS.md`: tables of the main metrics per group with CIs. Groups are
+  keyed by condition, model, alpha, info condition, prompt, `allow_withhold`
+  and `pot_size`, so must-send and withholding games never merge.
 - Charts (PNG, matplotlib, only if the `viz` extra is installed):
   1. `alpha_sweep.png`: information flow and bonus rate vs. alpha, one line
-     per model
-  2. `behavior_mix.png`: truthful / withheld / lie shares per alpha
+     per model (withholding-allowed groups only)
+  2. `behavior_mix.png`: truthful / withheld / lie shares per alpha; must-send
+     groups get their own bar, labeled "must-send"
   3. `info_conditions.png`: information flow by condition at alpha = 1
+     (withholding allowed)
   4. `flow_over_rounds.png`: information flow per round
 
 "Episodes worth reading" are picked automatically: first lie in a game,

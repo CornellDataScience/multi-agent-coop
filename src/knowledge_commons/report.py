@@ -96,16 +96,17 @@ def build_groups(files: list[Path]) -> tuple[list[dict], dict, list[dict]]:
     for f in files:
         s = summarize_game(f)
         meta = load_game(f)["meta"]
-        key = (s["condition"], s["model"], float(s["alpha"]), s["info_condition"], s["prompt_variant"])
+        key = (s["condition"], s["model"], float(s["alpha"]), s["info_condition"], s["prompt_variant"],
+               bool(s["allow_withhold"]), float(s["pot_size"]))
         groups.setdefault(key, []).append((s, _llm_means(s, meta)))
         for k in cost:
             cost[k] += s["game"][k]
         episodes.extend((s["model"] == "scripted", e) for e in find_episodes(f))
 
     out = []
-    for (cond, model, alpha, info, variant), rows in sorted(
-            groups.items(), key=lambda kv: (kv[0][0], kv[0][1], kv[0][2],
-                                            INFO_ORDER.index(kv[0][3]), kv[0][4] or "")):
+    for (cond, model, alpha, info, variant, allow_withhold, pot), rows in sorted(
+            groups.items(), key=lambda kv: (kv[0][0], kv[0][1], not kv[0][5], kv[0][2],
+                                            INFO_ORDER.index(kv[0][3]), kv[0][4] or "", kv[0][6])):
         metrics = {k: describe([s["game"][k] for s, _ in rows]) for k in GAME_SCALARS}
         llm_keys = sorted({k for _, llm in rows for k in llm})
         for k in llm_keys:
@@ -114,7 +115,8 @@ def build_groups(files: list[Path]) -> tuple[list[dict], dict, list[dict]]:
         flow_by_round = [_mean([s["game"]["flow_by_round"][t] for s, _ in rows
                                 if t < len(s["game"]["flow_by_round"])]) for t in range(n_rounds)]
         out.append({"condition": cond, "model": model, "alpha": alpha, "info_condition": info,
-                     "prompt_variant": variant, "n_games": len(rows), "metrics": metrics,
+                     "prompt_variant": variant, "allow_withhold": allow_withhold, "pot_size": pot,
+                     "n_games": len(rows), "metrics": metrics,
                      "flow_by_round": flow_by_round,
                      "files": [s["file"] for s, _ in rows]})
     # LLM games first: those are the episodes a reader actually wants.
@@ -133,6 +135,15 @@ def _ci(m: dict, pct: bool = False) -> str:
     return f(m["mean"])
 
 
+def _sends(g: dict) -> str:
+    return "optional" if g["allow_withhold"] else "must send"
+
+
+def _tag(g: dict) -> str:
+    """Chart label suffix for must-send groups."""
+    return "" if g["allow_withhold"] else " must-send"
+
+
 def _results_md(data: dict, chart_note: str) -> str:
     lines = [
         "# Knowledge Commons: Results",
@@ -142,14 +153,15 @@ def _results_md(data: dict, chart_note: str) -> str:
         "",
         "## Groups",
         "",
-        "| condition | model | alpha | info | games | info flow | truthful | withheld | lie "
+        "| condition | model | alpha | info | sends | pot | games | info flow | truthful | withheld | lie "
         "| bonus rate | efficiency | 1st-half flow | 2nd-half flow |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for g in data["groups"]:
         m = g["metrics"]
         lines.append(
-            f"| {g['condition']} | {g['model']} | {g['alpha']:g} | {g['info_condition']} | {g['n_games']} "
+            f"| {g['condition']} | {g['model']} | {g['alpha']:g} | {g['info_condition']} "
+            f"| {_sends(g)} | {g['pot_size']:g} | {g['n_games']} "
             f"| {_ci(m['information_flow'])} | {_ci(m['truthful_share'])} | {_ci(m['withheld_share'])} "
             f"| {_ci(m['lie_share'])} | {_ci(m['bonus_rate'])} | {_ci(m['efficiency'])} "
             f"| {_ci(m['first_half_flow'])} | {_ci(m['second_half_flow'])} |")
@@ -161,16 +173,16 @@ def _results_md(data: dict, chart_note: str) -> str:
             "",
             "Per-agent metrics averaged over the LLM agents in each game.",
             "",
-            "| condition | model | alpha | info | truthful | withhold | lie | targeted rounds "
+            "| condition | model | alpha | info | sends | truthful | withhold | lie | targeted rounds "
             "| reciprocity | uptake from prior liars | forgiveness lag | solve rate | score U "
             "| retry rate | fallback rate | quiz pass |",
-            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for g in llm_groups:
             m = g["metrics"]
             lines.append(
                 f"| {g['condition']} | {g['model']} | {g['alpha']:g} | {g['info_condition']} "
-                f"| {_ci(m['llm_truthful_rate'])} | {_ci(m['llm_withhold_rate'])} | {_ci(m['llm_lie_rate'])} "
+                f"| {_sends(g)} | {_ci(m['llm_truthful_rate'])} | {_ci(m['llm_withhold_rate'])} | {_ci(m['llm_lie_rate'])} "
                 f"| {_ci(m['llm_targeted_rounds'])} | {_ci(m['llm_reciprocity'])} "
                 f"| {_ci(m['llm_uptake_from_prior_liars'])} | {_ci(m['llm_forgiveness_lag'])} "
                 f"| {_ci(m['llm_solve_rate'])} | {_ci(m['llm_U'])} "
@@ -249,7 +261,8 @@ def _write_charts(groups: list[dict], out: Path) -> list[str]:
         written.append(name)
 
     # 1. Alpha sweep: two panels (no dual axis), one line per model.
-    sweep = [g for g in _llm_groups(groups) if g["info_condition"] == "private_memory"]
+    mix = [g for g in _llm_groups(groups) if g["info_condition"] == "private_memory"]
+    sweep = [g for g in mix if g["allow_withhold"]]  # must-send cells are not on the alpha axis
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), sharex=True)
     for ax, metric, title in ((axes[0], "information_flow", "Information flow"),
                               (axes[1], "bonus_rate", "Bonus rate")):
@@ -272,12 +285,13 @@ def _write_charts(groups: list[dict], out: Path) -> list[str]:
     save(fig, CHART_FILES[0])
 
     # 2. Behavior mix: stacked truthful / withheld / lie per (model, alpha).
-    fig, ax = plt.subplots(figsize=(max(5, 1.1 * len(sweep) + 2), 3.6))
+    fig, ax = plt.subplots(figsize=(max(5, 1.1 * len(mix) + 2), 3.6))
     _style(ax, "What agents send (share of dyad-rounds)", "share",
            "model, alpha" if len(models) > 1 else "alpha")
-    if sweep:
-        order = sorted(sweep, key=lambda g: (g["model"], g["alpha"]))
-        labels = [f"{g['model']}\nα={g['alpha']:g}" if len(models) > 1 else f"α={g['alpha']:g}" for g in order]
+    if mix:
+        order = sorted(mix, key=lambda g: (g["model"], not g["allow_withhold"], g["alpha"]))
+        labels = [(f"{g['model']}\n" if len(models) > 1 else "") + f"α={g['alpha']:g}{_tag(g)}"
+                  for g in order]
         bottom = [0.0] * len(order)
         for slot, (key, name, hatch) in enumerate((("truthful_share", "truthful", ""),
                                                    ("withheld_share", "withheld", "//"),
@@ -294,7 +308,7 @@ def _write_charts(groups: list[dict], out: Path) -> list[str]:
     save(fig, CHART_FILES[1])
 
     # 3. Information flow by info condition at alpha = 1.
-    at1 = [g for g in _llm_groups(groups) if abs(g["alpha"] - 1.0) < 1e-9]
+    at1 = [g for g in _llm_groups(groups) if abs(g["alpha"] - 1.0) < 1e-9 and g["allow_withhold"]]
     fig, ax = plt.subplots(figsize=(6, 3.6))
     _style(ax, "Information flow by information condition (alpha = 1)", "information flow")
     if at1:
@@ -325,7 +339,7 @@ def _write_charts(groups: list[dict], out: Path) -> list[str]:
     _style(ax, "Information flow per round", "information flow", "round")
     for k, g in enumerate(lines[: len(SERIES)]):  # never cycle hues
         ys = g["flow_by_round"]
-        label = f"{g['model']} α={g['alpha']:g} {g['info_condition'].replace('_', ' ')}"
+        label = f"{g['model']} α={g['alpha']:g}{_tag(g)} {g['info_condition'].replace('_', ' ')}"
         ax.plot(range(1, len(ys) + 1), ys, color=SERIES[k], marker=markers[k % len(markers)],
                 markersize=5, linewidth=2, label=label)
     ax.set_ylim(-0.02, 1.02)

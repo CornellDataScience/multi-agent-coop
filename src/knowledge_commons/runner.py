@@ -89,6 +89,8 @@ def run_condition(
     info: str | None = None,
     n_agents: int | None = None,
     rounds: int | None = None,
+    pot_size: float | None = None,
+    must_send: bool = False,
     effort: str | None = None,
     temperature: float | None = None,
     max_calls: int | None = None,
@@ -101,13 +103,17 @@ def run_condition(
     variant = prompt_variant or cond.prompt_variant
     get_variant(variant)
     overrides = {k: v for k, v in {"alpha": alpha, "info_condition": info, "n_agents": n_agents,
-                                   "max_rounds": rounds}.items() if v is not None}
+                                   "max_rounds": rounds, "pot_size": pot_size}.items() if v is not None}
+    if must_send:
+        overrides["allow_withhold"] = False
     base = replace(cond.config, **overrides)  # validates via __post_init__
     specs = expand_lineup(cond.agent_specs, base.n_agents)
     uses_llm = any(s["type"] == "llm" for s in specs)
     llm_model = model or next((s.get("model") for s in specs if s["type"] == "llm"), DEFAULT_LLM_MODEL)
 
     tags = [cond.name, _tag(llm_model) if uses_llm else "scripted", f"a{base.alpha:g}", base.info_condition]
+    if not base.allow_withhold:
+        tags.append("mustsend")
     if uses_llm:
         tags.append(variant)
         if effort:
@@ -118,6 +124,8 @@ def run_condition(
         tags.append(f"n{n_agents}")
     if rounds is not None:
         tags.append(f"r{rounds}")
+    if pot_size is not None:
+        tags.append(f"pot{pot_size:g}")
     stem = "_".join(tags)
 
     budget = CallBudget(max_calls)
@@ -141,6 +149,7 @@ def run_condition(
             "effort": effort,
             "temperature": temperature,
             "max_calls": max_calls,
+            "must_send": not cfg.allow_withhold,
         })
         try:
             log = env.run()

@@ -88,7 +88,8 @@ def test_both_schemas_ask_for_optional_reason():
 
 def test_reason_logged_per_action_and_shown(tmp_path):
     replies = [
-        '{"q1_direction": "down", "q1_amount": 10, "q2_amount": 10}',
+        '{"q1_direction": "same", "q1_amount": 0, "q2_amount": 10, "q3_all_amount": 10, '
+        '"q3_fewer_amount": 13.33}',
         _msg(', "reason": "Everyone shared last time."'),
         _guess(),
     ]
