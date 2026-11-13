@@ -14,3 +14,8 @@ date, phase, decision, why. Keep entries short.
 | 2026-11-13 | 1 | All codes are drawn up front from `random.Random(seed)` | Code sequence depends only on the seed (invariant 1) |
 | 2026-11-13 | 1 | Environment sanitizes scripted actions: non-digit sends become `None`; guesses are padded/truncated and non-digits become 0 | ARCHITECTURE §3.7 says sanitize, don't crash |
 | 2026-11-13 | 1 | `load_game` returns `{"meta", "rounds", "end"}` and converts every all-digit-string-keyed dict to int keys, recursively | One rule covers sends, observations, history, and reputation |
+| 2026-11-13 | 2 | `forgiveness_lag`: every lie j -> i is its own event; lag = rounds until i next sends j the truth; reported as mean over uncensored events plus `n_events` / `n_censored` | Simplest reading of SPEC §8; censoring stays visible |
+| 2026-11-13 | 2 | `reciprocity` and rate metrics are `None` (not 0) when a conditioning case never occurs | Avoid inventing a value from zero observations |
+| 2026-11-13 | 2 | `uptake` counts a received digit as used iff the guess has that digit in the sender's position; "prior liar" = lied to this agent in an earlier round | Direct reading of SPEC §8 from logged data only |
+| 2026-11-13 | 2 | Model calls are inferred from `parse_status` (ok = 1, retry_ok / fallback = 2); halves split at `rounds // 2`; bootstrap is the percentile CI of the mean | Logs record status, not attempt counts; standard, stdlib-only choices |
+| 2026-11-13 | 2 | Aggregates group per-agent metrics by label: scripted policy, else model | Lets probe conditions (E4) compare the LLM against each opponent type |
