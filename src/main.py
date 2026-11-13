@@ -10,6 +10,7 @@ from .analysis.replay import format_game
 from .experiments.configs import CONDITIONS, get_condition
 from .experiments.metrics import aggregate, summarize_game
 from .experiments.runner import run_condition
+from .knowledge_commons.cli import add_kc_parser
 
 
 def _load_dotenv(path: Path = Path(".env")) -> None:
@@ -139,6 +140,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_s.add_argument("path")
     p_s.add_argument("--raw", action="store_true", help="also print each agent's raw model output")
     p_s.set_defaults(func=_cmd_show)
+
+    add_kc_parser(sub)  # Knowledge Commons: infocoop kc ...
 
     return parser
 

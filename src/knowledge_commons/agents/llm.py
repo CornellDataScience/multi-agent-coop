@@ -13,7 +13,8 @@ from .prompt_variants import DEFAULT_VARIANT, get_variant
 from .prompts import build_prompts
 from .scripted import trusting_guess
 
-_BACKEND_TYPES = {"ClaudeBackend": "claude", "OllamaBackend": "ollama", "MockBackend": "mock"}
+_BACKEND_TYPES = {"ClaudeBackend": "claude", "OllamaBackend": "ollama", "MockBackend": "mock",
+                  "KCMockBackend": "mock"}
 
 
 def _add_usage(total: dict, usage: dict) -> None:
@@ -36,10 +37,12 @@ class KCLLMAgent(KCAgent):
         self.parse_failures = 0
 
     def describe(self) -> dict:
+        backend = getattr(self.backend, "wrapped", self.backend)  # see runner.CallBudget
+        name = type(backend).__name__
         return {
             "id": self.agent_id,
-            "type": _BACKEND_TYPES.get(type(self.backend).__name__, type(self.backend).__name__.lower()),
-            "model": getattr(self.backend, "model", None),
+            "type": _BACKEND_TYPES.get(name, name.lower()),
+            "model": getattr(backend, "model", None),
             "prompt_variant": self.prompt_variant,
         }
 

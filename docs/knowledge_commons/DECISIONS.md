@@ -25,3 +25,11 @@ date, phase, decision, why. Keep entries short.
 | 2026-11-13 | 3 | JSON is found by scanning every `{` with `raw_decode` and taking the first object with the expected key | JSON inside prose or code fences parses; stray braces don't break it |
 | 2026-11-13 | 3 | Prompts state the history without annotating which received digits were false; agents compare against the revealed code themselves | SPEC §5 says agents can "check who lied"; labeling would add framing |
 | 2026-11-13 | 3 | Agent type in the log comes from the backend class (claude / ollama / mock) | One `KCLLMAgent` serves every backend |
+| 2026-11-13 | 4 | `kc_llm` and probes default to `claude-haiku-5-5` at effort `medium` (Haiku's default), no server-side fallbacks (not supported on Haiku) | SPEC §9 uses Haiku for E1-E4 |
+| 2026-11-13 | 4 | `--model`: `mock` -> network-free mock, `claude-*` -> Claude API, anything else -> Ollama (seed = game_seed * 1000 + agent_id) | One flag covers all backends; mirrors Fisherman's Ollama seeding |
+| 2026-11-13 | 4 | `--agents N` keeps the first spec and repeats the rest cyclically | Probe conditions keep exactly one LLM at agent 0 |
+| 2026-11-13 | 4 | `--max-calls` counts every backend call (retries included) across the whole run; the game in progress is dropped, completed games are kept, exit code 0 | "Aborts cleanly, writing completed games" (ARCHITECTURE §3.9) |
+| 2026-11-13 | 4 | Mock model (`agents/mock.py`) reads only the prompt, shares truthfully ~70%, withholds ~15%, lies ~15%, emits junk ~3% and prose-wrapped JSON ~5%; reports usage as chars/4 | Exercises parsing, retries, and cost plumbing end to end with no network |
+| 2026-11-13 | 4 | KC CLI lives in `src/knowledge_commons/cli.py`; `src/main.py` only adds one import and one `add_kc_parser(sub)` call | Smallest change to a shared file (ARCHITECTURE §2 allows the `kc` group) |
+| 2026-11-13 | 4 | `bonus_threshold` is not rescaled when `--agents` changes; an invalid combination exits with an error | Don't silently change game rules |
+| 2026-11-13 | 4 | Default output dir `results/kc` (gitignored via `results/`) | Matches PHASES.md Phase 6 report command |
