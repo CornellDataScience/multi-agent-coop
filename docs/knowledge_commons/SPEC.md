@@ -133,7 +133,7 @@ One model call per phase per agent. JSON only.
 Message phase:
 
 ```json
-{"messages": {"1": 7, "2": null, "3": 7}}
+{"messages": {"1": 7, "2": null, "3": 7}, "reason": "Agent 2 sent me a false digit."}
 ```
 
 Keys are recipient agent ids (strings), values are a digit 0-9 or `null`.
@@ -142,17 +142,44 @@ Every other agent must appear exactly once.
 Guess phase:
 
 ```json
-{"guess": [3, 7, 1, 4], "confidence": 0.8}
+{"guess": [3, 7, 1, 4], "confidence": 0.8, "reason": "Agents 1 and 3 have been truthful."}
 ```
 
 `guess` has exactly `n_agents` digits. `confidence` (0-1, probability the
 guess is fully correct) is optional and used only for calibration metrics.
+
+`reason` (both phases) is optional: one short sentence on why. Prompts ask for
+it neutrally. It is stored per action (cut to 200 characters) and shown by
+`kc show`, never fed back to any agent. A missing or invalid `reason` never
+causes a retry or fallback.
 
 Invalid output gets one retry. Then:
 - Message fallback: send `null` to everyone.
 - Guess fallback: own digit in own position, received digits in their
   positions, 0 everywhere else.
 Both are logged with `parse_status = "fallback"`.
+
+### Comprehension check (before round 1)
+
+Each LLM agent gets one extra call before round 1: the same system prompt and
+rules (with the numeric `alpha`), then two questions:
+
+- (a) If every other agent earns 20 more points and you earn the same, does
+  your final score go up, down, or stay the same, and by how much?
+- (b) If you earn 10 more points and nobody else's points change, by how much
+  does your score change?
+
+```json
+{"q1_direction": "up|down|same", "q1_amount": 10, "q2_amount": 10}
+```
+
+Correct answers come from the payoff formula: (a) changes the score by
+`-alpha * 20` (direction `down`, or `same` when `alpha = 0`), (b) by `+10`. An
+agent passes if the direction is right, `|q1_amount| = alpha * 20`, and
+`q2_amount = 10` (tolerance 0.01). Bad JSON gets one retry, then the check is
+logged as failed. The quiz is not part of the game: no later prompt or
+observation mentions it, and agent behavior is unchanged by it. Scripted
+agents skip it.
 
 ## 7. Agents
 
@@ -196,6 +223,8 @@ Per agent:
 - `forgiveness_lag`: rounds between j lying to i and i next sending j the
   truth (censored if never)
 - `calibration`: Brier score of `confidence` vs. `solved`, when provided
+- `comprehension_pass`: 1 / 0 for the pre-game check, empty for scripted
+  agents
 
 Per game:
 - `information_flow`: truthful dyad-rounds / all dyad-rounds
@@ -203,6 +232,8 @@ Per game:
 - `welfare` = sum of `P`, `efficiency` = welfare / (N * (R + B) * rounds)
 - `first_half` vs. `second_half` information flow (does sharing decay?)
 - Reliability: retry and fallback rates, input/output tokens per call
+- `comprehension_pass_rate`: share of agents that took the pre-game check and
+  passed it
 
 Across games: mean, std, and a 95% bootstrap CI (seeded, stdlib only).
 
@@ -217,7 +248,8 @@ Across games: mean, std, and a 95% bootstrap CI (seeded, stdlib only).
 | E4 | 1 x LLM + scripted (3 honest / 2 reciprocators + 1 liar / 3 grudgers) | Exploitation, reciprocity, forgiveness vs. known strategies | 10 each |
 | E5 | Repeat E2 at `alpha` in {0, 1} with Sonnet | Model comparison | 5 each |
 
-One game = 2 calls x 4 agents x 8 rounds = 64 calls (fewer in E4). Run E1
+One game = 2 calls x 4 agents x 8 rounds = 64 calls, plus 1 comprehension
+call per LLM agent (68; fewer in E4). Run E1
 first and scale using the logged token counts.
 
 ## 10. Out of scope for v1

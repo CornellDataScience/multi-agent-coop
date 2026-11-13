@@ -163,8 +163,8 @@ def _results_md(data: dict, chart_note: str) -> str:
             "",
             "| condition | model | alpha | info | truthful | withhold | lie | targeted rounds "
             "| reciprocity | uptake from prior liars | forgiveness lag | solve rate | score U "
-            "| retry rate | fallback rate |",
-            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+            "| retry rate | fallback rate | quiz pass |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
         for g in llm_groups:
             m = g["metrics"]
@@ -174,7 +174,8 @@ def _results_md(data: dict, chart_note: str) -> str:
                 f"| {_ci(m['llm_targeted_rounds'])} | {_ci(m['llm_reciprocity'])} "
                 f"| {_ci(m['llm_uptake_from_prior_liars'])} | {_ci(m['llm_forgiveness_lag'])} "
                 f"| {_ci(m['llm_solve_rate'])} | {_ci(m['llm_U'])} "
-                f"| {_ci(m['retry_rate'])} | {_ci(m['fallback_rate'])} |")
+                f"| {_ci(m['retry_rate'])} | {_ci(m['fallback_rate'])} "
+                f"| {_ci(m['comprehension_pass_rate'])} |")
     c = data["cost"]
     lines += ["", "## Cost", "",
               f"{c['calls']} model calls, {c['input_tokens']} input tokens, {c['output_tokens']} output tokens.",

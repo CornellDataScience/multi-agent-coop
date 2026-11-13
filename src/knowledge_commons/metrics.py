@@ -15,15 +15,17 @@ from .scoring import SEND_KINDS, classify_send, utilities
 
 # Attempts per action implied by parse_status (one retry on failure).
 _ATTEMPTS = {"ok": 1, "retry_ok": 2, "fallback": 2}
+_QUIZ_ATTEMPTS = {"ok": 1, "retry_ok": 2, "failed": 2}
 
 GAME_SCALARS = (
     "information_flow", "truthful_share", "withheld_share", "lie_share",
     "bonus_rate", "mean_n_solvers", "welfare", "efficiency",
     "first_half_flow", "second_half_flow", "retry_rate", "fallback_rate",
+    "comprehension_pass_rate",
 )
 AGENT_SCALARS = (
     "truthful_rate", "withhold_rate", "lie_rate", "targeted_rounds",
-    "solve_rate", "P", "U", "reciprocity", "calibration",
+    "solve_rate", "P", "U", "reciprocity", "calibration", "comprehension_pass",
 )
 
 
@@ -130,6 +132,7 @@ def summarize_game(path: str | Path) -> dict:
     """Per-game and per-agent metrics for one JSONL log."""
     game = load_game(path)
     meta, rounds = game["meta"], game["rounds"]
+    quiz = game.get("comprehension") or {}
     cfg = meta["config"]
     n, alpha = cfg["n_agents"], cfg["alpha"]
     kinds_by_round = [dyad_kinds(r) for r in rounds]
@@ -164,6 +167,8 @@ def summarize_game(path: str | Path) -> dict:
             "uptake": _uptake(i, rounds, kinds_by_round, n),
             "forgiveness_lag": _forgiveness(i, kinds_by_round, n),
             "calibration": (sum(briers) / len(briers)) if briers else None,
+            # 1.0 / 0.0 if the agent took the pre-game quiz, None if it skipped it.
+            "comprehension_pass": float(quiz[i]["passed"]) if i in quiz else None,
         }
 
     half = n_rounds // 2
@@ -180,6 +185,12 @@ def summarize_game(path: str | Path) -> dict:
                 usage_in += u.get("input_tokens", 0)
                 usage_out += u.get("output_tokens", 0)
     calls = sum(_ATTEMPTS[s] for s in statuses)
+    # Quiz calls count toward cost but not toward game retry/fallback rates.
+    for q in quiz.values():
+        calls += _QUIZ_ATTEMPTS.get(q.get("parse_status"), 0)
+        u = q.get("usage") or {}
+        usage_in += u.get("input_tokens", 0)
+        usage_out += u.get("output_tokens", 0)
     welfare = sum(totals.values())
 
     g = {
@@ -202,6 +213,8 @@ def summarize_game(path: str | Path) -> dict:
         "model_actions": len(statuses),
         "retry_rate": _ratio(statuses.count("retry_ok"), len(statuses)),
         "fallback_rate": _ratio(statuses.count("fallback"), len(statuses)),
+        "comprehension_tested": len(quiz),
+        "comprehension_pass_rate": _ratio(sum(bool(q["passed"]) for q in quiz.values()), len(quiz)),
         "calls": calls,
         "input_tokens": usage_in,
         "output_tokens": usage_out,

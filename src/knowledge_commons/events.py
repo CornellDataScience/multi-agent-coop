@@ -14,6 +14,7 @@ class MessageAction:
     parse_status: str = "scripted"  # scripted | ok | retry_ok | fallback
     served_by: str | None = None
     usage: dict = field(default_factory=dict)
+    reason: str | None = None  # optional one-sentence "why" from the model
 
 
 @dataclass
@@ -25,6 +26,20 @@ class GuessAction:
     confidence: float | None = None
     raw_output: str | None = None
     parse_status: str = "scripted"
+    served_by: str | None = None
+    usage: dict = field(default_factory=dict)
+    reason: str | None = None
+
+
+@dataclass
+class ComprehensionAction:
+    """An agent's answers to the pre-game rules quiz. ``answers`` is None
+    when both attempts failed to parse. Grading happens in the environment,
+    not the agent."""
+
+    answers: dict | None
+    raw_output: str | None = None
+    parse_status: str = "ok"  # ok | retry_ok | failed
     served_by: str | None = None
     usage: dict = field(default_factory=dict)
 

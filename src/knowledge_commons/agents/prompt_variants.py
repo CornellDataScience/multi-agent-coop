@@ -59,13 +59,26 @@ NEUTRAL = {
         "{message_example}\n"
         "Include each other agent exactly once, keyed by its id as a string "
         "({recipient_keys}). Each value is the digit you send to that agent (0-9), or "
-        "null to send nothing."
+        "null to send nothing. \"reason\" is optional: one short sentence on why."
     ),
     "schema_guess": (
         "Now make your guess. Respond with JSON only, in this form:\n"
         "{guess_example}\n"
         "\"guess\" is the full code, exactly {n_agents} digits, position 0 first. "
-        "\"confidence\" is your probability (0 to 1) that your guess is entirely correct."
+        "\"confidence\" is your probability (0 to 1) that your guess is entirely correct. "
+        "\"reason\" is optional: one short sentence on why."
+    ),
+    # Pre-game comprehension check; sent once with the rules, never shown again.
+    "quiz": (
+        "Before the game starts, answer two questions about how your score is calculated.\n"
+        "(a) If every other agent earns 20 more points and you earn the same, does your "
+        "final score go up, down, or stay the same, and by how much?\n"
+        "(b) If you earn 10 more points and nobody else's points change, by how much does "
+        "your score change?\n"
+        "Respond with JSON only, in this form:\n"
+        '{"q1_direction": "up" | "down" | "same", "q1_amount": <number>, "q2_amount": <number>}\n'
+        "\"q1_amount\" is how much your score changes in (a); \"q2_amount\" is how much it "
+        "changes in (b)."
     ),
 }
 

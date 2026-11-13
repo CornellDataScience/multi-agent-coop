@@ -16,7 +16,8 @@ def _digits(seq) -> str:
 def format_game(path: str | Path, raw: bool = False) -> str:
     """One block per round: the code, each agent's sends (``--`` = sent
     nothing, ``LIE`` = false digit), guesses, and points. ``raw=True`` adds
-    each model's raw output for both phases."""
+    each model's raw output for both phases (and the quiz). Optional model
+    reasons and pre-game quiz results are always shown."""
     game = load_game(path)
     meta, rounds = game["meta"], game["rounds"]
     cfg = meta["config"]
@@ -30,6 +31,16 @@ def format_game(path: str | Path, raw: bool = False) -> str:
             f"{i}={agents.get(i, {}).get('policy') or agents.get(i, {}).get('model') or '?'}"
             for i in range(cfg["n_agents"])),
     ]
+    for i, q in sorted((game.get("comprehension") or {}).items()):
+        a = q.get("answers")
+        got = (f"{a['q1_direction']} {a['q1_amount']:g}, {a['q2_amount']:g}" if a
+               else "no valid answer")
+        exp = q["expected"]
+        lines.append(f"  quiz agent {i}: {'PASS' if q['passed'] else 'FAIL'} [{q['parse_status']}]"
+                     f" | answered {got} | expected {exp['q1_direction']} "
+                     f"{abs(exp['q1_change']):g}, {exp['q2_change']:g}")
+        if raw and q.get("raw_output") is not None:
+            lines.append(f"    raw quiz: {q['raw_output'].strip()}")
     for r in rounds:
         kinds = dyad_kinds(r)
         lines.append(f"  round {r['round']}: code {_digits(r['code'])} | solvers {r['n_solvers']}"
@@ -44,6 +55,10 @@ def format_game(path: str | Path, raw: bool = False) -> str:
                 f" {'OK' if r['solved'][i] else 'x '} | +{r['points'][i]}"
                 + (f" | conf {conf:.2f}" if conf is not None else "")
             )
+            for phase in ("message", "guess"):
+                why = r.get("actions", {}).get(phase, {}).get(i, {}).get("reason")
+                if why:
+                    lines.append(f"      why {phase}: {why}")
             if raw:
                 for phase in ("message", "guess"):
                     act = r.get("actions", {}).get(phase, {}).get(i, {})

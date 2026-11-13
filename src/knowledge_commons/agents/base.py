@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..events import GuessAction, MessageAction
-from ..observation import KCObservation
+from ..events import ComprehensionAction, GuessAction, MessageAction
+from ..observation import KCObservation, KCRulesObservation
 
 
 class KCAgent(ABC):
@@ -21,6 +21,11 @@ class KCAgent(ABC):
     @abstractmethod
     def make_guess(self, obs: KCObservation) -> GuessAction:
         """Return a full guess of the code."""
+
+    def comprehension_check(self, obs: KCRulesObservation) -> ComprehensionAction | None:
+        """Answer the pre-game rules quiz. Default: skip (None). Must not
+        change how the agent plays: the game never shows the quiz again."""
+        return None
 
     def describe(self) -> dict:
         """Agent entry for the log's meta record."""

@@ -3,6 +3,7 @@ raises ``ParseError``; the agent retries once and then falls back."""
 from __future__ import annotations
 
 import json
+import math
 import re
 
 
@@ -85,3 +86,52 @@ def parse_guess_output(text: str, n_agents: int) -> tuple[tuple[int, ...], float
     if isinstance(conf, bool) or not isinstance(conf, (int, float)) or not 0 <= conf <= 1:
         conf = None
     return digits, (float(conf) if conf is not None else None)
+
+
+REASON_MAX_CHARS = 200
+
+
+def extract_reason(text: str, key: str) -> str | None:
+    """Optional ``"reason"`` from the same object as ``key``. Never raises:
+    a missing, non-string, or empty reason is None and a long one is cut to
+    ``REASON_MAX_CHARS``, so a reason can never cause a retry or fallback."""
+    try:
+        reason = extract_json_object(text, key).get("reason")
+    except ParseError:
+        return None
+    if not isinstance(reason, str) or not reason.strip():
+        return None
+    return " ".join(reason.split())[:REASON_MAX_CHARS]
+
+
+_DIRECTIONS = ("up", "down", "same")
+
+
+def _as_number(value, name: str) -> float:
+    if isinstance(value, bool):
+        raise ParseError(f"{name} must be a number, got bool")
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip().lstrip("+"))
+        except ValueError:
+            pass
+    raise ParseError(f"{name} must be a number, got {value!r}")
+
+
+def parse_comprehension_output(text: str) -> dict:
+    """``{"q1_direction": "up"|"down"|"same", "q1_amount": n, "q2_amount": n}``.
+    Only checks shape; correctness is graded by the environment."""
+    data = extract_json_object(text, "q1_direction")
+    direction = data["q1_direction"]
+    if not isinstance(direction, str) or direction.strip().lower() not in _DIRECTIONS:
+        raise ParseError(f"q1_direction must be one of {_DIRECTIONS}, got {direction!r}")
+    for key in ("q1_amount", "q2_amount"):
+        if key not in data:
+            raise ParseError(f"missing {key!r} field")
+    q1 = _as_number(data["q1_amount"], "q1_amount")
+    q2 = _as_number(data["q2_amount"], "q2_amount")
+    if not all(map(math.isfinite, (q1, q2))):
+        raise ParseError("amounts must be finite")
+    return {"q1_direction": direction.strip().lower(), "q1_amount": q1, "q2_amount": q2}

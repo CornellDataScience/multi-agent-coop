@@ -42,6 +42,7 @@ def _action_meta(action) -> dict:
         "parse_status": action.parse_status,
         "served_by": action.served_by,
         "usage": dict(action.usage),
+        "reason": action.reason,
     }
 
 
@@ -56,6 +57,7 @@ class KCGameLog:
     rounds: list[RoundRecord] = field(default_factory=list)
     message_obs: list[dict[int, KCObservation]] = field(default_factory=list)
     guess_obs: list[dict[int, KCObservation]] = field(default_factory=list)
+    comprehension: dict[int, dict] = field(default_factory=dict)  # agent id -> quiz result
 
     def add_round(self, rec: RoundRecord, message_obs: dict[int, KCObservation],
                   guess_obs: dict[int, KCObservation]) -> None:
@@ -84,6 +86,8 @@ class KCGameLog:
             "agents": self.agents,
             "run_parameters": self.run_parameters,
         }]
+        for i, quiz in sorted(self.comprehension.items()):
+            out.append({"record": "comprehension", "agent": i, **quiz})
         for idx, r in enumerate(self.rounds):
             out.append({
                 "record": "round",
@@ -118,9 +122,12 @@ class KCGameLog:
 
 
 def load_game(path: str | Path) -> dict:
-    """Read a JSONL game. Returns ``{"meta", "rounds", "end"}`` with agent-id
-    keys converted back to ints. ``end`` is None for a truncated file."""
+    """Read a JSONL game. Returns ``{"meta", "comprehension", "rounds",
+    "end"}`` with agent-id keys converted back to ints. ``comprehension`` maps
+    agent id -> quiz record (empty for scripted agents and older logs).
+    ``end`` is None for a truncated file."""
     meta: dict = {}
+    comprehension: dict[int, dict] = {}
     rounds: list[dict] = []
     end: dict | None = None
     with Path(path).open() as fh:
@@ -132,8 +139,10 @@ def load_game(path: str | Path) -> dict:
             kind = rec.get("record")
             if kind == "meta":
                 meta = rec
+            elif kind == "comprehension":
+                comprehension[rec["agent"]] = rec
             elif kind == "round":
                 rounds.append(rec)
             elif kind == "end":
                 end = rec
-    return {"meta": meta, "rounds": rounds, "end": end}
+    return {"meta": meta, "comprehension": comprehension, "rounds": rounds, "end": end}

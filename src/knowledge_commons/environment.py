@@ -8,8 +8,8 @@ from .agents.base import KCAgent
 from .config import KCConfig
 from .events import GuessAction, MessageAction, RoundRecord
 from .log import KCGameLog
-from .observation import build_guess_obs, build_message_obs
-from .scoring import round_points
+from .observation import build_guess_obs, build_message_obs, build_rules_obs
+from .scoring import comprehension_expected, grade_comprehension, round_points
 
 
 def draw_codes(cfg: KCConfig) -> list[tuple[int, ...]]:
@@ -46,7 +46,8 @@ def _sanitize_guess(action: GuessAction, n: int) -> GuessAction:
 class KCEnvironment:
     def __init__(self, cfg: KCConfig, agents: list[KCAgent], condition: str,
                  run_parameters: dict | None = None,
-                 codes: list[tuple[int, ...]] | None = None):
+                 codes: list[tuple[int, ...]] | None = None,
+                 comprehension: bool = True):
         if len(agents) != cfg.n_agents:
             raise ValueError(f"expected {cfg.n_agents} agents, got {len(agents)}")
         if [a.agent_id for a in agents] != list(range(cfg.n_agents)):
@@ -61,6 +62,7 @@ class KCEnvironment:
             self.codes = draw_codes(cfg)
         self.cfg = cfg
         self.agents = agents
+        self.comprehension = comprehension
         self.log = KCGameLog(config=cfg, condition=condition,
                              agents=[a.describe() for a in agents],
                              run_parameters=dict(run_parameters or {}))
@@ -94,7 +96,30 @@ class KCEnvironment:
         self.log.add_round(rec, m_obs_log, g_obs_log)
         return rec
 
+    def comprehension_check(self) -> None:
+        """Pre-game rules quiz for every agent that takes it (scripted agents
+        return None). Graded here against ``alpha``, logged, and never fed
+        back: no later observation mentions it."""
+        for agent in self.agents:
+            obs = build_rules_obs(self.cfg, agent.agent_id)
+            act = agent.comprehension_check(copy.deepcopy(obs))
+            if act is None:
+                continue
+            act = copy.deepcopy(act)
+            self.log.comprehension[agent.agent_id] = {
+                "observation": obs.to_dict(),
+                "raw_output": act.raw_output,
+                "parse_status": act.parse_status,
+                "served_by": act.served_by,
+                "usage": dict(act.usage),
+                "answers": act.answers,
+                "expected": comprehension_expected(self.cfg.alpha),
+                "passed": grade_comprehension(act.answers, self.cfg.alpha),
+            }
+
     def run(self) -> KCGameLog:
+        if self.comprehension and not self.log.rounds and not self.log.comprehension:
+            self.comprehension_check()
         for round_no in range(len(self.log.rounds) + 1, self.cfg.max_rounds + 1):
             self.play_round(round_no)
         return self.log

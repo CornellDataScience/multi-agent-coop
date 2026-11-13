@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import re
 
-from ..observation import KCObservation
+from ..observation import KCObservation, KCRulesObservation
 from .prompt_variants import DEFAULT_VARIANT, get_variant
 
 _PLACEHOLDER = re.compile(
@@ -26,21 +26,34 @@ def _received_list(received: dict[int, int | None]) -> str:
     return ", ".join(f"agent {j} sent you {_sent_word(d)}" for j, d in sorted(received.items()))
 
 
-def _values(obs: KCObservation) -> dict[str, str]:
-    others = [j for j in range(obs.n_agents) if j != obs.agent_id]
-    msg_example = '{"messages": {%s}}' % ", ".join(f'"{j}": <digit 0-9 or null>' for j in others)
-    guess_example = '{"guess": [%s], "confidence": <number 0-1>}' % ", ".join(["<digit>"] * obs.n_agents)
+_REASON = '"reason": "<one short sentence on why>"'
+
+
+def _rule_values(obs: KCObservation | KCRulesObservation) -> dict[str, str]:
+    """Placeholders the system prompt and rules need; both observation
+    types carry these fields."""
     return {
         "agent_id": str(obs.agent_id),
         "n_agents": str(obs.n_agents),
         "n_others": str(obs.n_agents - 1),
         "last_position": str(obs.n_agents - 1),
-        "round": "" if obs.round is None else str(obs.round),
-        "my_digit": str(obs.my_digit),
         "reward_correct": str(obs.reward_correct),
         "group_bonus": str(obs.group_bonus),
         "bonus_threshold": str(obs.bonus_threshold),
         "alpha": f"{obs.alpha:g}",
+    }
+
+
+def _values(obs: KCObservation) -> dict[str, str]:
+    others = [j for j in range(obs.n_agents) if j != obs.agent_id]
+    msg_example = '{"messages": {%s}, %s}' % (
+        ", ".join(f'"{j}": <digit 0-9 or null>' for j in others), _REASON)
+    guess_example = '{"guess": [%s], "confidence": <number 0-1>, %s}' % (
+        ", ".join(["<digit>"] * obs.n_agents), _REASON)
+    return {
+        **_rule_values(obs),
+        "round": "" if obs.round is None else str(obs.round),
+        "my_digit": str(obs.my_digit),
         "recipient_keys": ", ".join(f'"{j}"' for j in others),
         "message_example": msg_example,
         "guess_example": guess_example,
@@ -104,3 +117,11 @@ def build_prompts(obs: KCObservation, variant: str = DEFAULT_VARIANT) -> tuple[s
 
     sections.append(_fill(t["schema_message" if obs.phase == "message" else "schema_guess"], v))
     return _fill(t["system"], v), "\n\n".join(sections)
+
+
+def build_quiz_prompts(obs: KCRulesObservation, variant: str = DEFAULT_VARIANT) -> tuple[str, str]:
+    """``(system, user)`` for the pre-game comprehension check: the same
+    system prompt and rules as the game, then the two quiz questions."""
+    t = get_variant(variant)
+    v = _rule_values(obs)
+    return _fill(t["system"], v), "\n\n".join([_fill(t["rules"], v), t["quiz"]])

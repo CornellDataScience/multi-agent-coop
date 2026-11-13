@@ -41,6 +41,28 @@ class KCObservation:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class KCRulesObservation:
+    """What an agent sees for the pre-game comprehension check: the rules and
+    payoff parameters only. No digit, no round, no history, no round limit."""
+
+    agent_id: int
+    n_agents: int
+    reward_correct: int
+    group_bonus: int
+    bonus_threshold: int
+    alpha: float
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def build_rules_obs(cfg: "KCConfig", agent_id: int) -> KCRulesObservation:
+    return KCRulesObservation(agent_id=agent_id, n_agents=cfg.n_agents,
+                              reward_correct=cfg.reward_correct, group_bonus=cfg.group_bonus,
+                              bonus_threshold=cfg.bonus_threshold, alpha=cfg.alpha)
+
+
 def _history_entry(rec: "RoundRecord", agent_id: int) -> dict:
     """One past round as this agent saw it: its own sends, what it received,
     its own guess and points, and the public reveal."""

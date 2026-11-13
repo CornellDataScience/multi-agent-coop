@@ -149,7 +149,11 @@ def test_always_junk_backend_falls_back_and_is_logged(tmp_path):
     path = KCEnvironment(cfg, agents, "junk", codes=codes).run().write_jsonl(tmp_path / "junk.jsonl")
 
     game = load_game(path)
-    assert len(backend.calls) == 3 * 2 * 2  # 3 rounds x 2 phases x (try + retry)
+    # Quiz (try + retry), then 3 rounds x 2 phases x (try + retry).
+    assert len(backend.calls) == 2 + 3 * 2 * 2
+    quiz = game["comprehension"][0]
+    assert (quiz["parse_status"], quiz["passed"], quiz["answers"]) == ("failed", False, None)
+    assert set(game["comprehension"]) == {0}  # scripted agents skip the quiz
     for rec, code in zip(game["rounds"], codes):
         for phase in ("message", "guess"):
             act = rec["actions"][phase][0]
@@ -160,7 +164,8 @@ def test_always_junk_backend_falls_back_and_is_logged(tmp_path):
         assert rec["guesses"][0] == list(code)
         assert rec["confidence"][0] is None
     g = summarize_game(path)["game"]
-    assert g["fallback_rate"] == pytest.approx(1.0) and g["calls"] == 12
+    assert g["fallback_rate"] == pytest.approx(1.0) and g["calls"] == 14
+    assert g["comprehension_pass_rate"] == 0.0
 
 
 def test_unknown_variant_fails_fast():

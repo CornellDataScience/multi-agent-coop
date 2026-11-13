@@ -126,6 +126,7 @@ class MessageAction:
     parse_status: str = "scripted"  # scripted | ok | retry_ok | fallback
     served_by: str | None = None
     usage: dict = field(default_factory=dict)
+    reason: str | None = None       # optional model "why", <= 200 chars
 
 @dataclass
 class GuessAction:
@@ -133,6 +134,15 @@ class GuessAction:
     confidence: float | None = None
     raw_output: str | None = None
     parse_status: str = "scripted"
+    served_by: str | None = None
+    usage: dict = field(default_factory=dict)
+    reason: str | None = None
+
+@dataclass
+class ComprehensionAction:          # pre-game quiz (SPEC §6)
+    answers: dict | None            # parsed q1_direction / q1_amount / q2_amount; None if failed
+    raw_output: str | None = None
+    parse_status: str = "ok"        # ok | retry_ok | failed
     served_by: str | None = None
     usage: dict = field(default_factory=dict)
 
@@ -154,6 +164,8 @@ class RoundRecord:
 def classify_send(digit: int | None, true_digit: int) -> str  # "truthful" | "withheld" | "lie"
 def round_points(solved: dict[int, bool], cfg: KCConfig) -> tuple[dict[int, int], int, bool]
 def utilities(totals: dict[int, int], alpha: float) -> dict[int, float]
+def comprehension_expected(alpha: float) -> dict   # correct quiz answers
+def grade_comprehension(answers: dict | None, alpha: float) -> bool
 ```
 
 ### 3.5 Observation (the firewall)
@@ -175,6 +187,13 @@ class KCObservation:
 
 def build_message_obs(cfg, round_no, agent_id, code, past_rounds) -> KCObservation
 def build_guess_obs(cfg, round_no, agent_id, code, past_rounds, sends_this_round) -> KCObservation
+
+@dataclass(frozen=True)
+class KCRulesObservation:            # comprehension check only: rules, no digit/round/history
+    agent_id: int; n_agents: int
+    reward_correct: int; group_bonus: int; bonus_threshold: int; alpha: float
+
+def build_rules_obs(cfg, agent_id) -> KCRulesObservation
 ```
 
 `history` entries for `private_memory` contain only: round number, the
@@ -195,7 +214,18 @@ class KCAgent(ABC):
     def send_messages(self, obs: KCObservation) -> MessageAction: ...
     @abstractmethod
     def make_guess(self, obs: KCObservation) -> GuessAction: ...
+    def comprehension_check(self, obs: KCRulesObservation) -> ComprehensionAction | None:
+        return None                  # default: skip (scripted agents)
 ```
+
+`KCLLMAgent.comprehension_check` makes one call with `build_quiz_prompts`
+(same system prompt and rules as the game, plus the two questions), retries
+once on bad JSON, and returns `parse_status = "failed"` after that. It keeps
+no state from the quiz, so later game prompts are byte-identical to a run
+without it. Agents return answers only; the environment grades them.
+
+Both game phases parse an optional `reason` with `extract_reason`, which never
+raises, so it cannot change `parse_status`.
 
 `KCLLMAgent(agent_id, backend, prompt_variant="neutral")`: build prompts,
 call backend, parse, retry once, fall back per SPEC §6. A refusal counts as a
@@ -211,9 +241,14 @@ received.
 class KCEnvironment:
     def __init__(self, cfg: KCConfig, agents: list[KCAgent], condition: str,
                  run_parameters: dict | None = None,
-                 codes: list[tuple[int, ...]] | None = None): ...
+                 codes: list[tuple[int, ...]] | None = None,
+                 comprehension: bool = True): ...
     def run(self) -> KCGameLog: ...
 ```
+
+Before round 1, if `comprehension` is on, `run()` builds a
+`KCRulesObservation` for every agent, collects `comprehension_check` results
+(skipping `None`), grades them against `cfg.alpha`, and stores them in the log.
 
 `codes` is for tests only: if given, it replaces the RNG draw so golden games
 can be hand-computed. Per round: draw code from `random.Random(cfg.seed)` (one RNG per game, codes
@@ -233,18 +268,25 @@ self, treat a missing recipient as `None`. LLM output is validated in
  "condition": str, "seed": int, "config": {...KCConfig},
  "agents": [{"id": 0, "type": "claude", "model": str, "prompt_variant": str}, ...],
  "run_parameters": {...}}
+{"record": "comprehension", "agent": 0, "observation": {...KCRulesObservation},
+ "raw_output": str, "parse_status": "ok|retry_ok|failed", "served_by": str,
+ "usage": {...}, "answers": {"q1_direction", "q1_amount", "q2_amount"} | null,
+ "expected": {"q1_direction", "q1_change", "q2_change"}, "passed": bool}
+                                     # one per LLM agent, none for scripted agents
 {"record": "round", "round": 1, "code": [..],
  "sends": {"0": {"1": 7, "2": null, "3": 7}, ...},
  "guesses": {"0": [..], ...}, "confidence": {"0": 0.8 | null, ...},
  "solved": {"0": true, ...}, "n_solvers": 4, "bonus": true,
  "points": {"0": 20, ...},
- "actions": {"message": {"0": {"raw_output", "parse_status", "served_by", "usage"}},
+ "actions": {"message": {"0": {"raw_output", "parse_status", "served_by", "usage", "reason"}},
              "guess":   {"0": {...}}},
  "observations": {"message": {"0": {...}}, "guess": {"0": {...}}}}
 {"record": "end", "totals": {"0": int}, "utilities": {"0": float}}
 ```
 
-JSON keys for agent ids are strings. `load_game()` converts them back to ints.
+JSON keys for agent ids are strings. `load_game()` converts them back to ints
+and returns `{"meta", "comprehension", "rounds", "end"}`; `comprehension` is
+`{agent_id: record}` (empty for logs written before the check existed).
 
 ### 3.9 CLI
 
