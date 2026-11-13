@@ -68,6 +68,7 @@ def load_game(path: str):
         return None
     n = meta["config"]["n_agents"]
     quiz = [None] * n
+    end = next((r for r in recs if r.get("record") == "end"), None)
     tin = tout = 0
     fallbacks = 0
     rounds = []
@@ -115,7 +116,10 @@ def load_game(path: str):
     summary = {"truth": tally["truth"] / dy, "lie": tally["lie"] / dy, "withheld": tally["withheld"] / dy,
                "solvers": sum(sum(rr["solved"]) for rr in rounds) / (len(rounds) or 1),
                "points": sum(sum(rr["points"]) for rr in rounds) / n,
-               "fallbacks": fallbacks}
+               "fallbacks": fallbacks,
+               "score": sum(float(v) for v in end["utilities"].values()) / n,
+               "scores": [round(float(end["utilities"][str(i)]), 2) for i in range(n)],
+               "totals": [round(float(end["totals"][str(i)]), 2) for i in range(n)]}
     return {"sum": summary, "quiz_ok": all(q for q in quiz if q is not None) and any(q is not None for q in quiz),"m": model[0], "c": cond, "seed": meta["seed"], "alpha": meta["config"]["alpha"],
             "n": n, "rounds": rounds, "quiz": quiz, "tin": tin, "tout": tout, "cost": round(cost, 4)}
 
@@ -134,6 +138,7 @@ def summarize(games):
             continue  # comprehension gate: a model that misreads the scoring can't speak to strategy
         c = cells[f"{g['m']}|{g['c']}"]
         c["games"] += 1
+        c["score"] += g["sum"]["score"]
         c["fallbacks"] += g["sum"]["fallbacks"]
         c["cost"] += g["cost"]
         c["tin"] += g["tin"]; c["tout"] += g["tout"]
@@ -166,6 +171,7 @@ def summarize(games):
             "quiz": c["quiz_pass"] / (c["quiz_n"] or 1), "quiz_n": int(c["quiz_n"]),
             "cost": round(c["cost"], 2), "cost_per_game": round(c["cost"] / (c["games"] or 1), 3),
             "fallbacks": int(c["fallbacks"]),
+            "score": round(c["score"] / (c["games"] or 1), 1),
             "flow": [round(v[0] / v[1], 3) for _, v in sorted(flow[key].items())],
         }
     return out
