@@ -112,7 +112,8 @@ def test_quiz_prompt_reuses_system_and_rules_and_is_neutral():
     gsys, game = build_prompts(build_message_obs(cfg, 1, 1, (1, 2, 3, 4), []))
     assert qsys == gsys
     assert quiz.split("\n\n")[0] == game.split("\n\n")[0]  # identical rules section
-    assert "every other agent earns 20 more points" in quiz
+    assert ("(a) If every other agent earns 20 more points and your own points don't change, "
+            "does your final score go up, down, or stay the same, and by how much?") in quiz
     assert "If you earn 10 more points" in quiz
     assert '"q1_direction"' in quiz and '"q2_amount"' in quiz
     assert "0.5 x" in quiz  # numeric alpha in the payoff formula

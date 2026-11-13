@@ -58,6 +58,7 @@ Only these. Anything else needs a note in `DECISIONS.md` and a reason.
 | `README.md` | Add a short "Knowledge Commons" section linking to the docs |
 | `CLAUDE.md` | New file: working rules for coding agents on this repo |
 | `.claude/settings.json` | New file: Claude Code project settings (no AI attribution in commits) |
+| `scripts/kc_experiments.sh` | New file: runs the KC experiment stages (E2-E4) for one model via `infocoop kc run` |
 
 **The existing Fisherman test files must pass without being edited.**
 

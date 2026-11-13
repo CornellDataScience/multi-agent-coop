@@ -164,8 +164,8 @@ Both are logged with `parse_status = "fallback"`.
 Each LLM agent gets one extra call before round 1: the same system prompt and
 rules (with the numeric `alpha`), then two questions:
 
-- (a) If every other agent earns 20 more points and you earn the same, does
-  your final score go up, down, or stay the same, and by how much?
+- (a) If every other agent earns 20 more points and your own points don't
+  change, does your final score go up, down, or stay the same, and by how much?
 - (b) If you earn 10 more points and nobody else's points change, by how much
   does your score change?
 

@@ -52,3 +52,5 @@ date, phase, decision, why. Keep entries short.
 | 2026-11-13 | Add-on | `reason` is read with `extract_reason`, which never raises; non-strings and blanks become `None`, whitespace is collapsed, text is cut to 200 chars; it is taken from the reply that parsed, and is `None` on fallback | "Missing or invalid reason must never trigger a retry or fallback" |
 | 2026-11-13 | Add-on | `schema_version` stays 1: the new record type and fields are additive and `load_game` ignores unknown records | Old logs and readers keep working |
 | 2026-11-13 | Add-on | `--max-calls` and `kc run`'s call count include quiz calls; no CLI flag to skip the quiz | Not requested; the environment flag covers tests |
+| 2026-11-13 | Add-on | Quiz question (a) says "your own points don't change" instead of "you earn the same" | "Earn the same" could be read as "you also earn 20 more" |
+| 2026-11-13 | Add-on | `scripts/kc_experiments.sh` added to ARCHITECTURE §2's allowed files | Experiment runner lives outside `src/knowledge_commons/`; it only calls the `kc` CLI |

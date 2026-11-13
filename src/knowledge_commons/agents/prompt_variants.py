@@ -71,8 +71,8 @@ NEUTRAL = {
     # Pre-game comprehension check; sent once with the rules, never shown again.
     "quiz": (
         "Before the game starts, answer two questions about how your score is calculated.\n"
-        "(a) If every other agent earns 20 more points and you earn the same, does your "
-        "final score go up, down, or stay the same, and by how much?\n"
+        "(a) If every other agent earns 20 more points and your own points don't change, "
+        "does your final score go up, down, or stay the same, and by how much?\n"
         "(b) If you earn 10 more points and nobody else's points change, by how much does "
         "your score change?\n"
         "Respond with JSON only, in this form:\n"
