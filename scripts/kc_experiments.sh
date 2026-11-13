@@ -10,6 +10,9 @@
 #   (pick one where cooperation is partial, not 100% or 0%):
 #     scripts/kc_experiments.sh haiku followup 10 1
 #
+#   Local Ollama models (free) work too; pass the Ollama model name:
+#     scripts/kc_experiments.sh llama3.1:8b sweep 10
+#
 # Every command has a --max-calls cap (2x expected calls) so nothing runs away.
 # All runs start at seed 0, so every model and condition sees the same codes.
 set -euo pipefail
@@ -18,13 +21,14 @@ case "${1:-}" in
   haiku)  MODEL=claude-haiku-5-5 ;;
   sonnet) MODEL=claude-sonnet-5-5 ;;
   opus)   MODEL=claude-opus-5-5 ;;
-  *) echo "usage: $0 haiku|sonnet|opus sweep|followup SEEDS [ALPHA]"; exit 1 ;;
+  *:*)    MODEL=$1 ;;   # Ollama model, e.g. llama3.1:8b or qwen3:8b
+  *) echo "usage: $0 haiku|sonnet|opus|<ollama-model> sweep|followup SEEDS [ALPHA]"; exit 1 ;;
 esac
 STAGE=${2:?usage: $0 MODEL sweep|followup SEEDS [ALPHA]}
 SEEDS=${3:?usage: $0 MODEL sweep|followup SEEDS [ALPHA]}
 
 BIN=.venv/bin/infocoop
-OUT=results/kc/$1
+OUT=results/kc/${1//[:\/]/_}
 FULL_CAP=$((SEEDS * 70 * 2))    # 4 LLM agents x (2 calls x 8 rounds + quiz), plus slack, doubled
 PROBE_CAP=$((SEEDS * 18 * 2))   # 1 LLM agent
 
