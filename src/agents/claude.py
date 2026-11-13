@@ -2,21 +2,10 @@ from __future__ import annotations
 
 from typing import Callable
 
+from .backends import ClaudeBackend
 from .llm import LLMAgent
 from .parsing import ParseError
 from .prompt_variants import DEFAULT_VARIANT
-
-_client = None
-
-
-def _claude_chat(**kwargs):
-    global _client
-    if _client is None:
-        import anthropic  # lazy import: only needed for real Claude runs
-
-        _client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from the environment
-    return _client.beta.messages.create(**kwargs)
-
 
 class ClaudeAgent(LLMAgent):
     """LLM agent backed by the Claude API.
@@ -48,20 +37,12 @@ class ClaudeAgent(LLMAgent):
         super().__init__(agent_id, model, fallback_take, prompt_variant)
         self.effort = effort
         self.fallbacks = fallbacks
-        self._chat = chat_fn or _claude_chat
+        self._backend = ClaudeBackend(model=model, effort=effort, fallbacks=fallbacks, chat_fn=chat_fn)
 
     def _call(self, system: str, prompt: str) -> str:
-        kwargs = dict(
-            model=self.model,
-            max_tokens=16000,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-            output_config={"effort": self.effort},
-        )
-        if self.fallbacks:
-            kwargs.update(betas=["server-side-fallback-2026-07-01"], fallbacks="default")
-        resp = self._chat(**kwargs)
-        self._served_by = resp.model
-        if resp.stop_reason == "refusal":
+        result = self._backend(system, prompt)
+        self._served_by = result.served_by
+        self.last_usage = result.usage
+        if result.refused:
             raise ParseError("model refused")
-        return "".join(b.text for b in resp.content if b.type == "text")
+        return result.text

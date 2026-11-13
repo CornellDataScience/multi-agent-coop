@@ -5,6 +5,7 @@ from typing import Callable
 
 from ..game.events import FirstPhaseAction, SecondPhaseAction
 from ..information.observation import Observation
+from .backends import OllamaBackend
 from .base import Agent
 from .parsing import ParseError, parse_first_phase_output, parse_second_phase_output
 from .prompt_variants import DEFAULT_VARIANT, get_variant
@@ -97,12 +98,6 @@ class LLMAgent(Agent):
         )
 
 
-def _ollama_chat(**kwargs):
-    import ollama  # lazy import: only needed for real LLM runs
-
-    return ollama.chat(**kwargs)
-
-
 class OllamaAgent(LLMAgent):
     """LLM agent backed by Ollama.
 
@@ -123,18 +118,9 @@ class OllamaAgent(LLMAgent):
         super().__init__(agent_id, model, fallback_take, prompt_variant)
         self.temperature = temperature
         self.seed = seed
-        self._chat = chat_fn or _ollama_chat
+        self._backend = OllamaBackend(model=model, temperature=temperature, seed=seed, chat_fn=chat_fn)
 
     def _call(self, system: str, prompt: str) -> str:
-        options = {"temperature": self.temperature}
-        if self.seed is not None:
-            options["seed"] = self.seed
-        resp = self._chat(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": prompt},
-            ],
-            options=options,
-        )
-        return resp["message"]["content"]
+        result = self._backend(system, prompt)
+        self.last_usage = result.usage
+        return result.text
