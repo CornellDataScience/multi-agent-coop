@@ -48,7 +48,8 @@ def wait_done(client, run_id, timeout=30):
 def test_health_tasks_presets_models(client):
     assert client.get("/api/health").json()["ok"] is True
     tasks = client.get("/api/tasks").json()
-    assert [t["id"] for t in tasks] == ["commons", "sale", "contract", "claim"]
+    assert [t["id"] for t in tasks] == ["commons", "sale", "contract", "claim",
+                                        "knowledge", "knowledge_rel"]
     presets = client.get("/api/presets").json()
     assert "core" in presets and "label_sweep" in presets
     models = client.get("/api/models").json()
@@ -150,7 +151,7 @@ def test_full_run_via_api_and_downloads(client, tmp_path):
 
 def test_about_and_static(client):
     about = client.get("/api/about").json()
-    assert len(about["tasks"]) == 4 and about["defaults"]["test_model"]
+    assert len(about["tasks"]) == 6 and about["defaults"]["test_model"]
     index = client.get("/")
     assert index.status_code == 200 and "Asymmetry Bench" in index.text
     js = client.get("/static/app.js")

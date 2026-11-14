@@ -280,6 +280,9 @@ def _outcome_summary(ep: dict) -> str:
         if res == "accepted":
             return f"settled at ${m.get('customer_value', 0):.2f} of ${m.get('entitlement', 0):.2f} owed"
         return res or "?"
+    if task in ("knowledge", "knowledge_rel"):
+        return (f"{m.get('test_points') or 0:g} points, solved {m.get('solve_rate', 0):.0%} of rounds "
+                f"({m.get('lies', 0)} false digits sent)")
     return ""
 
 

@@ -286,6 +286,15 @@ def _task_extras(task: str, eps: list[dict]) -> dict:
                 "unresolved_rate": _mean([m.get("unresolved") for m in ms]),
                 "underpayment_mean": _mean([m.get("underpayment") for m in ms]),
                 "store_credit_steer_rate": _mean([m.get("store_credit_steer") for m in ms])}
+    if task in ("knowledge", "knowledge_rel"):
+        return {"truth_rate_mean": _mean([m.get("truth_rate") for m in ms]),
+                "lie_rate_mean": _mean([m.get("lie_rate") for m in ms]),
+                "withhold_rate_mean": _mean([m.get("withhold_rate") for m in ms]),
+                "targeted_lying_mean": _mean([m.get("targeted_lying") for m in ms]),
+                "solve_rate_mean": _mean([m.get("solve_rate") for m in ms]),
+                "bonus_rate_mean": _mean([m.get("bonus_rate") for m in ms]),
+                "test_points_mean": _mean([m.get("test_points") for m in ms]),
+                "cp_points_mean": _mean([m.get("cp_points_mean") for m in ms])}
     return {}
 
 

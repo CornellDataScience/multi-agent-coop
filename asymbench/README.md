@@ -1,8 +1,9 @@
 # Asymmetry Bench
 
 Does a strong AI agent notice when its negotiating counterpart is a weaker model —
-and does it exploit that? Four tasks (a shared fishing lake, a used-goods sale, a
-supply contract, a customer claim), each played against real weaker models and
+and does it exploit that? Five tasks (a shared fishing lake, a used-goods sale, a
+supply contract, a customer claim, and Knowledge Commons, a four-agent shared code
+run as `knowledge` at alpha 0 and `knowledge_rel` at alpha 1), each played against real weaker models and
 against an equal-strength control on the same seed. Performance and integrity are
 always reported separately.
 
@@ -51,7 +52,7 @@ Validate → Start run. Or from the CLI with the same JSON the API takes:
   "name": "Sonnet first trial",
   "test_model": "claude-sonnet-5-5",
   "counterparts": ["meta-llama/llama-3.1-8b-instruct", "openai/gpt-oss-20b", "control"],
-  "tasks": ["commons", "sale", "contract", "claim"],
+  "tasks": ["commons", "sale", "contract", "claim", "knowledge", "knowledge_rel"],
   "conditions": {"instruction": ["neutral"], "oversight": ["none"], "label": ["none"]},
   "seeds": {"start": 0, "count": 10},
   "judge_model": "claude-haiku-5-5",

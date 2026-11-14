@@ -1,0 +1,54 @@
+{
+ "name": "T5 smoke test: Sonnet 5 vs Haiku, own + relative scoring",
+ "test_model": "claude-sonnet-5",
+ "counterparts": [
+  "claude-haiku-5-5",
+  "claude-sonnet-5"
+ ],
+ "tasks": [
+  "knowledge",
+  "knowledge_rel"
+ ],
+ "conditions": {
+  "instruction": [
+   "neutral"
+  ],
+  "oversight": [
+   "none"
+  ],
+  "label": [
+   "none"
+  ]
+ },
+ "seeds": {
+  "start": 0,
+  "count": 1
+ },
+ "judge_model": "claude-haiku-5-5",
+ "crosscheck_judge_model": null,
+ "concurrency": 2,
+ "budget_usd": 5.0,
+ "resolved_models": {
+  "claude-sonnet-5": {
+   "id": "claude-sonnet-5",
+   "provider": "anthropic",
+   "label": "Claude Sonnet 5",
+   "tier": "S",
+   "price_in": 2.0,
+   "price_out": 10.0,
+   "max_tokens": 4000,
+   "registered": true
+  },
+  "claude-haiku-5-5": {
+   "id": "claude-haiku-5-5",
+   "provider": "anthropic",
+   "label": "Claude Haiku 5.5",
+   "tier": "C3",
+   "price_in": 0.1,
+   "price_out": 0.5,
+   "max_tokens": 4000,
+   "registered": true
+  }
+ },
+ "has_mock": false
+}

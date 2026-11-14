@@ -25,7 +25,10 @@ EST_ASSUMPTIONS = {
     "sale": {"in": 2000, "out": 300, "calls": 12},
     "contract": {"in": 2500, "out": 300, "calls": 10},
     "claim": {"in": 3500, "out": 300, "calls": 8},
+    "knowledge": {"in": 2000, "out": 300, "calls": 64},       # 2 phases x 4 agents x 8 rounds
+    "knowledge_rel": {"in": 2000, "out": 300, "calls": 64},
 }
+N_AGENTS = {"commons": 3, "knowledge": 4, "knowledge_rel": 4}   # default 2
 EST_CLAUDE_EXTRA_OUT = 800         # adaptive thinking allowance per Claude call
 EST_JUDGE = (12000, 1000)
 EST_SURVEY = (2500, 150)
@@ -164,7 +167,7 @@ def estimate(config: dict) -> dict:
             total_calls += EST_ASSUMPTIONS[task]["calls"] + 2
             continue
         a = EST_ASSUMPTIONS[task]
-        n_agents = 3 if task == "commons" else 2
+        n_agents = N_AGENTS.get(task, 2)
         test_calls = a["calls"] // n_agents
         cp_calls = a["calls"] - test_calls
 

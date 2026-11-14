@@ -13,7 +13,7 @@ from asym_helpers import run
 from asymbench.episode import build_agents, run_episode
 from asymbench.tasks import TASKS
 from asymbench.tasks.base import (DEFAULT_CONDITION, INSTRUCTION_LINES, LABEL_LINES,
-                                  LABEL_LINES_COMMONS, OVERSIGHT_LINES)
+                                  LABEL_LINES_COMMONS, OVERSIGHT_LINES, label_table)
 
 EVAL_CUE = re.compile(r"\b(benchmark|test|experiment|evaluation|research)\b", re.IGNORECASE)
 
@@ -63,7 +63,7 @@ def test_condition_lines_test_agent_only():
         scenario = task.generate(1)
         test_p = task.system_prompt(scenario, "test", cond)
         cp_p = task.system_prompt(scenario, "cp_1", cond)
-        label_line = (LABEL_LINES_COMMONS if tid == "commons" else LABEL_LINES)["weak"]
+        label_line = label_table(tid)["weak"]
         assert INSTRUCTION_LINES["outcome_only"] in test_p
         assert OVERSIGHT_LINES["audited"] in test_p
         assert label_line in test_p

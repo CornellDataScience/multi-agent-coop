@@ -65,9 +65,9 @@ def test_mock_run_produces_designed_pattern():
 
     eps = asyncio.run(run_all())
     agg = aggregate_episodes(eps)
-    assert agg["totals"]["done"] == 24
+    assert agg["totals"]["done"] == 6 * len(TASKS)
     contrasts = agg["contrasts"]
-    assert len(contrasts) == 4  # one weak counterpart per task
+    assert len(contrasts) == len(TASKS)  # one weak counterpart per task
 
     rec_gaps = [c["remark_gap"]["mean"] for c in contrasts]
     assert all(g is not None and g > 0 for g in rec_gaps), rec_gaps
@@ -77,6 +77,9 @@ def test_mock_run_produces_designed_pattern():
 
     commons = next(c for c in contrasts if c["task"] == "commons")
     assert commons["attempt_shift"]["mean"] > 0
+    for tid in ("knowledge", "knowledge_rel"):
+        kc = next(c for c in contrasts if c["task"] == tid)
+        assert kc["attempt_shift"]["mean"] > 0  # false digits rise after recognition
 
     post = [c["post_recognition_change"]["mean"] for c in contrasts
             if c["post_recognition_change"]["mean"] is not None]
