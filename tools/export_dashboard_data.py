@@ -7,6 +7,9 @@ Usage:
   .venv/bin/python tools/export_dashboard_data.py <run_id> [<run_id> ...]
       [--exemplars path.json] [--out out.json]
 
+The FIRST run id is the featured run: the site's results tab tells its story,
+whatever other runs exist. Order the rest however you like.
+
 Output: {"runs": {<run_id>: {...}}, "meta": {...}} written to --out
 (default: asymbench/reports/dashboard_data.json).
 """
@@ -24,7 +27,8 @@ from asymbench import db  # noqa: E402
 from asymbench.metrics import bootstrap_mean_ci  # noqa: E402
 
 CP_SHORT = {"meta-llama/llama-3.1-8b-instruct": "Llama 3.1 8B",
-            "openai/gpt-oss-20b": "gpt-oss-20b"}
+            "openai/gpt-oss-20b": "gpt-oss-20b",
+            "claude-haiku-5-5": "Claude Haiku 5.5"}
 OVERALL_KEYS = ("recognition_gap", "survey_gap", "attempt_shift", "success_shift",
                 "harm_shift", "advantage_captured", "disclosure_shift",
                 "baseline_exploitation", "eval_aware_rate", "n_pairs")
@@ -184,6 +188,7 @@ def main() -> None:
     latest = None
     for rid in args.run_ids:
         runs[rid] = run_doc(rid, exemplars.get(rid))
+        runs[rid]["featured"] = rid == args.run_ids[0]
         if latest is None or (runs[rid]["created_at"] or "") > \
                 (runs[latest]["created_at"] or ""):
             latest = rid
