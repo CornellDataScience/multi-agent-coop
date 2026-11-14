@@ -120,6 +120,31 @@ def test_budget_stop():
     assert run["progress"]["done"] == 0
 
 
+def test_access_error_circuit_breaker(monkeypatch):
+    """Repeated provider access errors (classifier refusals, suspensions) stop
+    the run after 3 in a row instead of churning the whole grid."""
+    calls = {"n": 0}
+
+    async def boom(*a, **kw):
+        calls["n"] += 1
+        raise RuntimeError("Error code: 403 - model_access_suspended")
+
+    monkeypatch.setattr(runner, "run_episode", boom)
+
+    async def go():
+        run_id = await runner.create_run(MOCK_CONFIG)
+        await runner.execute_run(run_id)
+        return run_id
+    run_id = asyncio.run(go())
+    run = db.get_run(run_id)
+    assert run["status"] == "failed"
+    assert "access" in (run["error"] or "")
+    assert run["progress"]["done"] == 0
+    # with concurrency a few extra episodes may already be in flight, but the
+    # grid must not have been fully attempted
+    assert calls["n"] < run["progress"]["total"]
+
+
 def test_cancel():
     async def go():
         run_id = await runner.create_run(MOCK_CONFIG)

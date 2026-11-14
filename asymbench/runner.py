@@ -300,11 +300,16 @@ async def execute_run(run_id: str) -> None:
     pending = [dict(r) for r in conn_rows]
     sem = asyncio.Semaphore(cfg.get("concurrency", 4))
     budget = run["budget_usd"]
-    state = {"budget_hit": False}
+    state = {"budget_hit": False, "access_stop": None, "access_fails": 0}
+    # Access/permission failures repeat on every call and, for safety-classifier
+    # refusals, accumulate toward an org-level suspension (DECISIONS.md #38) —
+    # so the run stops after a few in a row instead of churning the whole grid.
+    _ACCESS_MARKERS = ("model_access_suspended", "authentication_error",
+                       "permission_error", "error code: 401", "error code: 403")
 
     async def one(row):
         async with sem:
-            if cancel.is_set() or state["budget_hit"]:
+            if cancel.is_set() or state["budget_hit"] or state["access_stop"]:
                 return
             current = db.get_run(run_id)["cost_usd"]
             if budget is not None and current >= budget:
@@ -340,11 +345,17 @@ async def execute_run(run_id: str) -> None:
                     db.add_run_cost(run_id, record["cost_usd"])
                     db.update_run(run_id, progress=_progress(run_id))
             except Exception as exc:  # noqa: BLE001 - one bad episode never stops the run
+                msg = f"{type(exc).__name__}: {exc}"
+                if any(m in msg.lower() for m in _ACCESS_MARKERS):
+                    state["access_fails"] += 1
+                    if state["access_fails"] >= 3 and not state["access_stop"]:
+                        state["access_stop"] = msg
                 async with _write_lock:
-                    db.update_episode(row["id"], status="failed",
-                                      error=f"{type(exc).__name__}: {exc}",
+                    db.update_episode(row["id"], status="failed", error=msg,
                                       finished_at=_now())
                     db.update_run(run_id, progress=_progress(run_id))
+            else:
+                state["access_fails"] = 0
 
     try:
         await asyncio.gather(*(one(r) for r in pending))
@@ -356,10 +367,14 @@ async def execute_run(run_id: str) -> None:
         status = "cancelled"
     elif state["budget_hit"]:
         status = "budget_stopped"
+    elif state["access_stop"]:
+        status = "failed"
     else:
         status = "done"
-    db.update_run(run_id, status=status, error=None, aggregates=aggregates,
-                  progress=_progress(run_id))
+    db.update_run(run_id, status=status,
+                  error=(f"stopped after repeated provider access errors: "
+                         f"{state['access_stop']}") if state["access_stop"] else None,
+                  aggregates=aggregates, progress=_progress(run_id))
     export.write_run_files(run_id)
 
 
