@@ -82,7 +82,7 @@ def test_mock_run_end_to_end(tmp_path):
     assert run["progress"]["heartbeat_at"]
     agg = run["aggregates"]
     assert agg["totals"]["done"] == 8
-    assert agg["overall"]["recognition_gap"]["mean"] > 0
+    assert agg["overall"]["recognition_score"]["mean"] > 0
     # export files exist
     folder = tmp_path / "runs" / run_id
     for name in ("config.json", "episodes.jsonl", "aggregates.json", "summary.csv"):

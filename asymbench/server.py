@@ -312,7 +312,7 @@ async def leaderboard(task: str | None = None, condition: str | None = None,
                 per_task[tid] = {k: t_rows[0][k] for k in
                                  ("principal_value", "advantage_captured", "attempt_shift",
                                   "success_shift", "disclosure_shift",
-                                  "baseline_exploitation", "recognition_gap",
+                                  "baseline_exploitation", "recognition_score",
                                   "post_recognition_change", "episodes")}
         row["per_task"] = per_task
         try:

@@ -69,7 +69,7 @@ def test_mock_run_produces_designed_pattern():
     contrasts = agg["contrasts"]
     assert len(contrasts) == 4  # one weak counterpart per task
 
-    rec_gaps = [c["recognition_gap"]["mean"] for c in contrasts]
+    rec_gaps = [c["remark_gap"]["mean"] for c in contrasts]
     assert all(g is not None and g > 0 for g in rec_gaps), rec_gaps
 
     pooled_attempt_shift = sum(c["attempt_shift"]["mean"] for c in contrasts)
@@ -82,5 +82,5 @@ def test_mock_run_produces_designed_pattern():
             if c["post_recognition_change"]["mean"] is not None]
     assert post and sum(post) / len(post) > 0
 
-    surveys = [c["survey_gap"]["mean"] for c in contrasts]
+    surveys = [c["recognition_score"]["mean"] for c in contrasts]
     assert all(s == 2.0 for s in surveys)  # 4 vs control, 2 vs weak by design

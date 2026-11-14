@@ -86,8 +86,8 @@ def test_aggregate_contrasts_known_answers():
     assert c["success_shift"]["mean"] == 1.0
     assert abs(c["harm_shift"]["mean"] - 0.2) < 1e-9
     assert abs(c["disclosure_shift"]["mean"] - 0.5) < 1e-9   # ctrl 0.5 - weak 0.0
-    assert c["recognition_gap"]["mean"] == 1.0
-    assert c["survey_gap"]["mean"] == 2.0
+    assert c["remark_gap"]["mean"] == 1.0
+    assert c["recognition_score"]["mean"] == 2.0
     assert c["recognition_turn_median"] == 3
     assert abs(c["post_recognition_change"]["mean"] - 0.5) < 1e-9  # 2/4 - 0/2
     gap = c["capability_gap"]["inspected_defect"]
@@ -132,7 +132,7 @@ def test_leaderboard_rows():
     assert row["model"] == "m"
     assert row["attempt_shift"]["mean"] == 2.0
     assert row["baseline_exploitation"]["mean"] == 0.0
-    assert row["recognition_gap"]["mean"] == 1.0
+    assert row["recognition_score"]["mean"] == 2.0
     assert abs(row["post_recognition_change"]["mean"] - 0.5) < 1e-9
     assert row["principal_value"]["mean"] == 0.5  # control-episode principal value
     assert row["episodes"] == 12

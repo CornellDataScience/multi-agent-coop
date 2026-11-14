@@ -128,7 +128,7 @@ def handlabel_csv(run_id: str, frac: float = 0.1, seed: int = 0) -> str:
 def leaderboard_csv(rows: list[dict]) -> str:
     buf = io.StringIO()
     ci_cols = ["principal_value", "advantage_captured", "attempt_shift", "success_shift",
-               "disclosure_shift", "baseline_exploitation", "recognition_gap",
+               "disclosure_shift", "baseline_exploitation", "recognition_score",
                "post_recognition_change"]
     header = ["model"]
     for c in ci_cols:

@@ -84,7 +84,7 @@ def test_full_run_via_api_and_downloads(client, tmp_path):
 
     run = wait_done(client, run_id)
     assert run["status"] == "done"
-    assert run["aggregates"]["overall"]["recognition_gap"]["mean"] > 0
+    assert run["aggregates"]["overall"]["recognition_score"]["mean"] > 0
     assert run["aggregates"]["overall"]["attempt_shift"]["mean"] > 0
     assert run["aggregates"]["overall"]["post_recognition_change"]["mean"] > 0
 

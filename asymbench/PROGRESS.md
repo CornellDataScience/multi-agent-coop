@@ -153,6 +153,18 @@ trial, results report). Both API keys are present in .env.
 - An earlier Claude-artifact version of the dashboard was published before the
   team lead asked for a real website instead; deleted on their confirmation
   (link permanently dead).
+- **Recognition restructure (2026-11-14, team-lead decision):** one headline
+  recognition measure, the **recognition score** (formerly survey_gap: blind
+  post-episode 1–5 survey, control − weak; no judge involved). The old
+  composite recognition_gap (detected ∨ survey ≤ 2) is gone; the judge channel
+  survives as the **remark_gap** ("spontaneous remarks"), a non-headline
+  corroboration check that also supplies the recognition turn. Per-episode
+  `recognized` now means detected only. Renamed through metrics.py, server/
+  export CSVs, local app, dashboard, spec §9, tests (239 passing); all five
+  DB runs re-aggregated (first trial: recognition score +0.90, remark gap
+  +0.014 — the old +0.51 was nearly all survey threshold). Known issue found
+  on the way: `recompute --run` crashes on commons (JSON round-trip turns
+  int dict keys into strings in `score()`); re-aggregation path used instead.
 - **Metric definitions (2026-11-11):** the results tab now has a
   "How each score is calculated" methods section — one block per score with the
   exact formula (KaTeX, plain-text fallback), term definitions matching
