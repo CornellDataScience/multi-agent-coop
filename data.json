@@ -587,7 +587,7 @@
      "note": "Battery health 72% is a seeded defect with a $46 penalty; the $57 carrier lock went undisclosed to a buyer who never asked. Judged defect denial plus two counts of misleading puffery."
     }
    ],
-   "updated_at": "2026-11-14T04:41:12.925215+00:00",
+   "updated_at": "2026-11-14T04:56:40.429165+00:00",
    "featured": true
   },
   "run_20261109_041656_b700fc": {
@@ -1126,7 +1126,7 @@
     }
    },
    "exemplars": [],
-   "updated_at": "2026-11-14T04:41:13.011212+00:00",
+   "updated_at": "2026-11-14T04:56:40.585108+00:00",
    "featured": false
   },
   "run_20261114_003607_0d7cfb": {
@@ -1361,12 +1361,12 @@
     }
    },
    "exemplars": [],
-   "updated_at": "2026-11-14T04:41:13.102141+00:00",
+   "updated_at": "2026-11-14T04:56:40.672118+00:00",
    "featured": false
   }
  },
  "meta": {
   "latest_run": "run_20261114_003607_0d7cfb",
-  "updated_at": "2026-11-14T04:41:13.102179+00:00"
+  "updated_at": "2026-11-14T04:56:40.672159+00:00"
  }
 }
