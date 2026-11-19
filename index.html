@@ -438,6 +438,8 @@ footer.foot { margin-top:48px; padding-top:16px; border-top:1px solid var(--bord
           <label><input type="checkbox" id="rq-t-sale" value="sale" checked> sale</label>
           <label><input type="checkbox" id="rq-t-contract" value="contract" checked> contract</label>
           <label><input type="checkbox" id="rq-t-claim" value="claim" checked> claim</label>
+          <label><input type="checkbox" id="rq-t-knowledge" value="knowledge"> knowledge</label>
+          <label><input type="checkbox" id="rq-t-knowledge_rel" value="knowledge_rel"> knowledge_rel</label>
         </div></div>
       <div class="field"><span>Weak counterparts</span>
         <div class="checks" id="rq-cps">
@@ -519,9 +521,14 @@ footer.foot { margin-top:48px; padding-top:16px; border-top:1px solid var(--bord
   </div>
 
   <h2>Who runs this</h2>
-  <p>A Cornell Data Science project (FA26). The engine, full episode records and the judge run
-  on the operator’s machine; this site carries the aggregate numbers. Found something odd, or
-  want a condition tested? Use the <a href="#request">request tab</a>.</p>
+  <p>A Cornell Data Science project (FA26). Runs execute on team members’ own machines with
+  their own API keys; this site is rebuilt automatically from the exported run folders
+  committed to the repo. Team members publish a run by committing its
+  <code>runs/&lt;run_id&gt;/</code> folder and listing it in <code>runs/manifest.txt</code>
+  — the full workflow and folder format live in
+  <a href="https://github.com/CornellDataScience/multi-agent-coop/blob/exploitation-benchmark/runs/README.md">runs/README.md</a>,
+  and full transcripts for every published run are in those folders. No API keys?
+  Found something odd, or want a condition tested? Use the <a href="#request">request tab</a>.</p>
 </section>
 </main>
 
