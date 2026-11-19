@@ -82,7 +82,8 @@ other changes.
 
 - **SQLite:** `data/asymbench.db` (gitignored) — runs and full episode records
   (every turn's observation, raw model output, parsed action, private notes).
-- **Files:** `runs/<run_id>/` (gitignored) — `config.json`, `episodes.jsonl`,
+- **Files:** `runs/<run_id>/` (tracked — committing a folder is how a run gets
+  published, see `runs/README.md`) — `config.json`, `episodes.jsonl`,
   `aggregates.json`, `summary.csv`; the UI's Download ZIP bundles these plus a
   README. Episode JSON, hand-label CSV samples and the leaderboard CSV are also
   downloadable from the UI.
@@ -91,22 +92,26 @@ other changes.
 
 ## Public dashboard
 
-The shareable results site lives at **https://miwi343.github.io/asymmetry-bench/**
-(static GitHub Pages; the same site is staged on this repo's `gh-pages` branch and
-serves at `https://cornelldatascience.github.io/multi-agent-coop/` once a repo
-admin enables Pages: Settings → Pages → Deploy from branch → `gh-pages`).
+The team results site lives at
+**https://cornelldatascience.github.io/multi-agent-coop/** (static GitHub
+Pages from this repo's `gh-pages` branch; an earlier mirror remains at
+https://miwi343.github.io/asymmetry-bench/).
 
 - **Page source:** `asymbench/dashboard/index.html`. Data layer: it polls
   `data.json` (same origin) every 60 s and the repo's GitHub issues every 5 min.
-- **Sync results** (also works repeatedly *during* a live run — that's what keeps
-  the public progress/cost close to live):
-  ```bash
-  tools/deploy_dashboard.sh <run_id> [<run_id> ...]
-  ```
-  It exports chart-ready JSON (`tools/export_dashboard_data.py`), then pushes
-  `index.html` + `data.json` to both Pages targets from a temp worktree — it
-  never touches your branch. Episode-level transcripts stay local; only
-  aggregates, cost splits and curated exemplar quotes are published.
+- **Publishing (the normal path):** commit an exported `runs/<run_id>/` folder,
+  list the id in `runs/manifest.txt`, push — a GitHub Action
+  (`.github/workflows/publish-site.yml`) rebuilds `data.json` from the
+  committed folders via `tools/build_site.py` and deploys `gh-pages`.
+  **Anyone with write access can publish; no API keys or local DB needed.**
+  Full workflow and folder contract: `runs/README.md`.
+- **Manual deploy** (rarely needed — e.g. to mirror a live run's progress
+  before it completes): `tools/deploy_dashboard.sh <run_id> [...]` exports from
+  your local DB and pushes both Pages targets. Note the next CI deploy rebuilds
+  from the committed manifest, so manual deploys are overwritten on push.
+- The site's `data.json` carries aggregates, cost splits and curated exemplar
+  quotes. Full episode transcripts are in the committed run folders in the
+  (public) repo.
 - **Test requests:** teammates use the site's "Request a test" form, which opens
   a prefilled GitHub issue titled `[Test request] …` containing a runner config
   JSON block. Pick them up with `gh issue list --search "[Test request] in:title"`,

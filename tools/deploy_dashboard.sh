@@ -1,12 +1,18 @@
 #!/bin/bash
-# Deploy the Asymmetry Bench dashboard to GitHub Pages (gh-pages branch).
+# MANUAL deploy of the Asymmetry Bench dashboard — normally not needed.
+#
+# The normal publish path is CI: commit an exported runs/<run_id>/ folder,
+# list it in runs/manifest.txt, and push — .github/workflows/publish-site.yml
+# rebuilds and deploys the site (see runs/README.md). Use this script only to
+# mirror a live run's progress before it completes, or to push the Miwi343
+# mirror. The next CI deploy rebuilds from the committed manifest, so whatever
+# this script publishes is overwritten on the next push.
 #
 # Usage: tools/deploy_dashboard.sh <run_id> [<run_id> ...]
 #
-# Exports data.json for the given runs (exemplars merged automatically when
-# asymbench/reports/first_trial/exemplars.json covers one of them), copies the
-# static page beside it, and pushes both to the gh-pages branch. Run it again
-# any time — including repeatedly during a live run — to refresh the site.
+# Exports data.json for the given runs FROM YOUR LOCAL DB (exemplars merged
+# automatically when asymbench/reports/first_trial/exemplars.json covers one),
+# copies the static page beside it, and pushes both to the gh-pages branch.
 # It never touches the current branch or working tree.
 set -euo pipefail
 cd "$(dirname "$0")/.."

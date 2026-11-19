@@ -1,0 +1,13 @@
+# Runs published to the team site, one run id per line.
+#
+#   https://cornelldatascience.github.io/multi-agent-coop/
+#
+# The FIRST id is the FEATURED run: the site's Results tab tells its story.
+# Every id listed here must have its exported folder runs/<run_id>/ committed
+# on this branch. Pushing a change to this file (or to any runs/ folder)
+# triggers .github/workflows/publish-site.yml, which rebuilds and deploys the
+# site — see runs/README.md for the full publish workflow.
+
+run_20261109_195350_7c8efd  # first trial: Sonnet 5 vs Llama 3.1 8B / gpt-oss-20b, 4 tasks x 10 seeds
+run_20261109_041656_b700fc  # pilot: same grid at 3 seeds
+run_20261114_003607_0d7cfb  # T5 knowledge commons: Sonnet 5 vs Haiku 5.5, 5 seeds (Connie)

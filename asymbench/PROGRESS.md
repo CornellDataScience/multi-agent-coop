@@ -172,3 +172,32 @@ trial, results report). Both API keys are present in .env.
   what-it-answers paragraph with the latest run's value injected live. Every
   score number, column header and run-log label on the site deep-links to its
   block (`#results/<slug>` sub-anchors with a highlight flash).
+
+## Self-serve publishing: CI deploys the site from committed runs (2026-11-19)
+
+Org Pages is live (an admin enabled it):
+https://cornelldatascience.github.io/multi-agent-coop/ — now the canonical URL.
+
+- **Publish pipeline:** `runs/<run_id>/` folders are now git-tracked
+  (`.gitignore` flipped to `runs/*` + `!runs/run_*/`), and
+  `runs/manifest.txt` lists what the site shows (first id = featured run).
+  On any push to `exploitation-benchmark` touching `runs/` or the dashboard,
+  `.github/workflows/publish-site.yml` runs `tools/build_site.py` — manifest →
+  validate folders → import into a scratch DB → export `data.json` — and
+  deploys `gh-pages`. No API keys, no local DB: any teammate with write
+  access publishes by committing their exported folder. Verified: the rebuilt
+  data.json is identical to the live site's (timestamps aside).
+- **Folder staleness fixed:** the on-disk exports of the pilot, first trial
+  and Connie's three T5 runs predated the 2026-11-14 metric rename and the
+  cost-split migration; all five re-exported from the DB
+  (`export.write_run_files`), and the build rejects pre-rename folders with a
+  re-export instruction. The export README's `recognized` note updated to the
+  post-restructure definition. Pilot + first-trial folders committed (full
+  transcripts are now in the public repo — intentional, flagged in
+  runs/README.md).
+- **Docs for humans and AI agents:** new root `AGENTS.md` (repo map, run
+  commands, publish steps, request-a-run path, hard rules incl. the
+  neutral-prompt invariant) with `CLAUDE.md` importing it; `runs/README.md`
+  is the folder-format contract; `.github/ISSUE_TEMPLATE/test-request.md`
+  mirrors the site form's issue shape; root + asymbench READMEs updated;
+  `deploy_dashboard.sh` demoted to manual/mirror use.

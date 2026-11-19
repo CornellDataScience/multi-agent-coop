@@ -1,0 +1,67 @@
+# Publishes the team results site on every push that touches the runs/ folder
+# or the dashboard. Anyone with write access publishes a run by committing its
+# exported runs/<run_id>/ folder and listing the id in runs/manifest.txt —
+# see runs/README.md for the 3-step workflow. No API keys are used here:
+# the site is rebuilt entirely from the committed run exports.
+name: Publish dashboard
+
+on:
+  push:
+    branches: [exploitation-benchmark]
+    paths:
+      - "runs/**"
+      - "asymbench/dashboard/**"
+      - "asymbench/reports/first_trial/exemplars.json"
+      - "tools/build_site.py"
+      - "tools/import_run_folder.py"
+      - "tools/export_dashboard_data.py"
+      - ".github/workflows/publish-site.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write # to push the built site to the gh-pages branch
+
+concurrency:
+  group: publish-dashboard
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies (offline build — no API keys)
+        run: pip install pyyaml python-dotenv
+
+      - name: Build site from runs/manifest.txt
+        run: python tools/build_site.py --out-dir _site
+
+      - name: Deploy to gh-pages
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git fetch origin gh-pages 2>/dev/null; then
+            git worktree add /tmp/pages FETCH_HEAD
+            git -C /tmp/pages checkout -B gh-pages
+          else
+            git worktree add --detach /tmp/pages
+            git -C /tmp/pages checkout --orphan gh-pages
+            git -C /tmp/pages rm -rfq . 2>/dev/null || true
+          fi
+          # Only the files the build owns are replaced; anything else on
+          # gh-pages (e.g. future subpages) is preserved.
+          cp _site/index.html _site/data.json /tmp/pages/
+          touch /tmp/pages/.nojekyll
+          git -C /tmp/pages add -A
+          if git -C /tmp/pages diff --cached --quiet; then
+            echo "site unchanged; nothing to deploy"
+          else
+            git -C /tmp/pages commit -m "Dashboard sync from ${GITHUB_SHA}"
+            git -C /tmp/pages push origin gh-pages
+          fi

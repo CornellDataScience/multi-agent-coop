@@ -7,6 +7,14 @@ objectives, and how that affects individual and collective outcomes.
 - Full behavioral spec: [`specs.md`](specs.md)
 - Engineering contract / design decisions: [`IMPLEMENTATION_PROMPT.md`](IMPLEMENTATION_PROMPT.md)
 
+> **Looking for Asymmetry Bench** (the exploitation benchmark)? It lives in
+> [`asymbench/`](asymbench/) on this branch (`exploitation-benchmark`), with
+> the team results site at <https://cornelldatascience.github.io/multi-agent-coop/>.
+> Start at [`AGENTS.md`](AGENTS.md): how to run the benchmark, how to publish
+> a run to the site (commit its `runs/<run_id>/` folder — see
+> [`runs/README.md`](runs/README.md)), and how to request a run if you don't
+> have API keys.
+
 Each round has two decision stages. First, each agent simultaneously makes a
 public announcement and a private take; that first take is uncounted and does
 not change the pool. Agents then see the first announcements, decide whether

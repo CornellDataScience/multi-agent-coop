@@ -17,8 +17,13 @@ results/
 .env.*
 !.env.example
 
-# Asymmetry Bench runtime artifacts (created by `python -m asymbench`)
-runs/
+# Asymmetry Bench runtime artifacts (created by `python -m asymbench`).
+# Exported run folders (runs/run_*/) ARE tracked: committing one and listing
+# its id in runs/manifest.txt publishes it to the team site (runs/README.md).
+runs/*
+!runs/manifest.txt
+!runs/README.md
+!runs/run_*/
 data/
 
 # Personal Claude Code permission overrides

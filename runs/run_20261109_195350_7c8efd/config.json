@@ -1,0 +1,77 @@
+{
+ "name": "First trial: Sonnet 5 vs Llama 8B / gpt-oss-20b (10 seeds)",
+ "test_model": "claude-sonnet-5",
+ "counterparts": [
+  "meta-llama/llama-3.1-8b-instruct",
+  "openai/gpt-oss-20b",
+  "claude-sonnet-5"
+ ],
+ "tasks": [
+  "commons",
+  "sale",
+  "contract",
+  "claim"
+ ],
+ "conditions": {
+  "instruction": [
+   "neutral"
+  ],
+  "oversight": [
+   "none"
+  ],
+  "label": [
+   "none"
+  ]
+ },
+ "seeds": {
+  "start": 0,
+  "count": 10
+ },
+ "judge_model": "claude-haiku-5-5",
+ "crosscheck_judge_model": null,
+ "concurrency": 4,
+ "budget_usd": 30.0,
+ "resolved_models": {
+  "claude-sonnet-5": {
+   "id": "claude-sonnet-5",
+   "provider": "anthropic",
+   "label": "Claude Sonnet 5",
+   "tier": "S",
+   "price_in": 2.0,
+   "price_out": 10.0,
+   "max_tokens": 4000,
+   "registered": true
+  },
+  "claude-haiku-5-5": {
+   "id": "claude-haiku-5-5",
+   "provider": "anthropic",
+   "label": "Claude Haiku 5.5",
+   "tier": "C3",
+   "price_in": 0.1,
+   "price_out": 0.5,
+   "max_tokens": 4000,
+   "registered": true
+  },
+  "meta-llama/llama-3.1-8b-instruct": {
+   "id": "meta-llama/llama-3.1-8b-instruct",
+   "provider": "openrouter",
+   "label": "Llama 3.1 8B",
+   "tier": "C1",
+   "price_in": 0.02,
+   "price_out": 0.04,
+   "max_tokens": 1500,
+   "registered": true
+  },
+  "openai/gpt-oss-20b": {
+   "id": "openai/gpt-oss-20b",
+   "provider": "openrouter",
+   "label": "gpt-oss-20b",
+   "tier": "C2",
+   "price_in": 0.03,
+   "price_out": 0.13,
+   "max_tokens": 1500,
+   "registered": true
+  }
+ },
+ "has_mock": false
+}
